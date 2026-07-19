@@ -5,11 +5,28 @@
     "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
 }
 
+:root {
+  /* Per-group accent, overridden inline by the group layout. */
+  --accent: #047857;
+  --accent-soft: #03402f;
+}
+
 html,
 body {
-  @apply bg-white dark:bg-gray-950;
+  @apply bg-neutral-50 text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right)
+    env(safe-area-inset-bottom) env(safe-area-inset-left);
 
   @media (prefers-color-scheme: dark) {
     color-scheme: dark;
   }
+}
+
+/* Big, honest touch targets everywhere. */
+button,
+a,
+input,
+select,
+textarea {
+  touch-action: manipulation;
 }

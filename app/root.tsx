@@ -5,30 +5,74 @@ import {
   Outlet,
   Scripts,
   ScrollRestoration,
+  useRouteLoaderData,
 } from "react-router";
+import { useEffect } from "react";
 
 import type { Route } from "./+types/root";
 import "./app.css";
+import { getLocale } from "./lib/server/cookies.server";
+import { dict, INTL_LOCALE, type Locale } from "./lib/i18n";
+
+export function loader({ request }: Route.LoaderArgs) {
+  return {
+    locale: getLocale(request),
+    supabase:
+      process.env.SUPABASE_URL && process.env.SUPABASE_ANON_KEY
+        ? { url: process.env.SUPABASE_URL, key: process.env.SUPABASE_ANON_KEY }
+        : null,
+  };
+}
+
+// Offline navigations can't reach the server loader; fall back to the last
+// known locale so the app shell still renders.
+export async function clientLoader({ serverLoader }: Route.ClientLoaderArgs) {
+  try {
+    const data = await serverLoader();
+    localStorage.setItem("sumup_root", JSON.stringify(data));
+    return data;
+  } catch {
+    const cached = localStorage.getItem("sumup_root");
+    if (cached) return JSON.parse(cached) as Awaited<ReturnType<typeof loader>>;
+    return { locale: "en" as Locale, supabase: null };
+  }
+}
+
+export function useLocale(): Locale {
+  const data = useRouteLoaderData<typeof loader>("root");
+  return data?.locale ?? "en";
+}
+
+export function useT() {
+  const locale = useLocale();
+  return { t: dict(locale), locale, intl: INTL_LOCALE[locale] };
+}
+
+export function useSupabaseConfig() {
+  const data = useRouteLoaderData<typeof loader>("root");
+  return data?.supabase ?? null;
+}
 
 export const links: Route.LinksFunction = () => [
-  { rel: "preconnect", href: "https://fonts.googleapis.com" },
-  {
-    rel: "preconnect",
-    href: "https://fonts.gstatic.com",
-    crossOrigin: "anonymous",
-  },
-  {
-    rel: "stylesheet",
-    href: "https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap",
-  },
+  { rel: "manifest", href: "/manifest.webmanifest" },
+  { rel: "icon", href: "/icons/icon.svg", type: "image/svg+xml" },
+  { rel: "apple-touch-icon", href: "/icons/apple-touch-icon.png" },
 ];
 
 export function Layout({ children }: { children: React.ReactNode }) {
+  const data = useRouteLoaderData<typeof loader>("root");
+  useEffect(() => {
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("/sw.js").catch(() => {});
+    }
+  }, []);
   return (
-    <html lang="en">
+    <html lang={data?.locale ?? "en"}>
       <head>
         <meta charSet="utf-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+        <meta name="theme-color" content="#0f172a" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
         <Meta />
         <Links />
       </head>
@@ -62,11 +106,14 @@ export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
   }
 
   return (
-    <main className="pt-16 p-4 container mx-auto">
-      <h1>{message}</h1>
-      <p>{details}</p>
+    <main className="mx-auto max-w-md px-4 pt-16">
+      <h1 className="text-2xl font-bold">{message}</h1>
+      <p className="mt-2 text-neutral-500">{details}</p>
+      <a href="/" className="mt-6 inline-block font-medium text-[var(--accent)]">
+        Sum Up →
+      </a>
       {stack && (
-        <pre className="w-full p-4 overflow-x-auto">
+        <pre className="mt-4 w-full overflow-x-auto p-4 text-xs">
           <code>{stack}</code>
         </pre>
       )}
