@@ -1,7 +1,8 @@
 import type { Config } from "@react-router/dev/config";
 
 export default {
-  // Config options...
-  // Server-side render by default, to enable SPA mode set this to `false`
   ssr: true,
+  // Ship the full route manifest upfront: lazy route discovery fetches
+  // manifest patches per navigation, which breaks offline navigation.
+  routeDiscovery: { mode: "initial" },
 } satisfies Config;

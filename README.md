@@ -1,87 +1,42 @@
-# Welcome to React Router!
+# Sum Up
 
-A modern, production-ready template for building full-stack React applications using React Router.
+A Splid-style group expense splitter. No accounts — a group's unguessable link is the credential.
+Offline-first PWA, multi-currency, auto-categorization. See [PLAN.md](PLAN.md) for the full spec
+and architecture decisions.
 
-[![Open in StackBlitz](https://developer.stackblitz.com/img/open_in_stackblitz.svg)](https://stackblitz.com/github/remix-run/react-router-templates/tree/main/default)
+## Stack
 
-## Features
+- React Router 8 (framework mode, SSR) + Tailwind 4 + TypeScript
+- Postgres (Supabase in production, Docker locally) via `postgres.js` — server-only, RLS deny-all
+- Supabase Realtime broadcast as a "doorbell" (contentless change pings)
+- IndexedDB mirror + outbox for offline reads/writes, service worker for the app shell
+- frankfurter.dev for ECB exchange rates, Gemini for expense auto-categorization (optional)
 
-- 🚀 Server-side rendering
-- ⚡️ Hot Module Replacement (HMR)
-- 📦 Asset bundling and optimization
-- 🔄 Data loading and mutations
-- 🔒 TypeScript by default
-- 🎉 TailwindCSS for styling
-- 📖 [React Router docs](https://reactrouter.com/)
-
-## Getting Started
-
-### Installation
-
-Install the dependencies:
+## Development
 
 ```bash
+# 1. Local Postgres + schema
+docker run -d --name sumup-pg -e POSTGRES_PASSWORD=sumup_dev -e POSTGRES_DB=sumup \
+  -p 55432:5432 postgres:17-alpine
+docker exec -i sumup-pg psql -U postgres -d sumup < db/0001_init.sql
+
+# 2. Env (see .env) — DATABASE_URL is the only required var
+# 3. Run
 npm install
-```
-
-### Development
-
-Start the development server with HMR:
-
-```bash
 npm run dev
 ```
 
-Your application will be available at `http://localhost:5173`.
+Optional env vars: `SUPABASE_URL` + `SUPABASE_ANON_KEY` (realtime doorbell),
+`GEMINI_API_KEY` (+ `GEMINI_MODELS` override) for LLM categorization of titles the
+keyword matcher misses. Everything degrades gracefully without them.
 
-## Building for Production
+## Production
 
-Create a production build:
+- Apply `db/0001_init.sql` to the Supabase project (as a migration).
+- Deploy to Vercel (functions pinned to `fra1` via `vercel.json`); set
+  `DATABASE_URL` (Supavisor transaction pooler URL), `SUPABASE_URL`,
+  `SUPABASE_ANON_KEY`, `GEMINI_API_KEY`.
 
-```bash
-npm run build
-```
+## Icons
 
-## Deployment
-
-### Docker Deployment
-
-To build and run using Docker:
-
-```bash
-docker build -t my-app .
-
-# Run the container
-docker run -p 3000:3000 my-app
-```
-
-The containerized application can be deployed to any platform that supports Docker, including:
-
-- AWS ECS
-- Google Cloud Run
-- Azure Container Apps
-- Digital Ocean App Platform
-- Fly.io
-- Railway
-
-### DIY Deployment
-
-If you're familiar with deploying Node applications, the built-in app server is production-ready.
-
-Make sure to deploy the output of `npm run build`
-
-```
-├── package.json
-├── package-lock.json (or pnpm-lock.yaml, or bun.lockb)
-├── build/
-│   ├── client/    # Static assets
-│   └── server/    # Server-side code
-```
-
-## Styling
-
-This template comes with [Tailwind CSS](https://tailwindcss.com/) already configured for a simple default starting experience. You can use whatever CSS framework you prefer.
-
----
-
-Built with ❤️ using React Router.
+`node scripts/gen-icons.mjs` regenerates the PWA PNGs from the design in the script.
