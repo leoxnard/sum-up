@@ -27,8 +27,10 @@ export const de: Dictionary = {
   saved: "Gespeichert",
   inviteLink: "Einladungslink",
   copyLink: "Link kopieren",
+  shareLink: "Teilen",
   linkCopied: "Kopiert!",
-  inviteHint: "Alle mit diesem Link können die ganze Gruppe sehen und bearbeiten.",
+  inviteHint:
+    "Alle mit diesem Link können die ganze Gruppe sehen und bearbeiten. Teile ihn mit allen in der Gruppe — er ist der einzige Weg zurück, falls du auf diesem Gerät den Zugriff verlierst.",
   exportCsv: "CSV exportieren",
   deleteGroup: "Gruppe löschen",
   deleteGroupConfirm: "Diese Gruppe mit allen Einträgen für alle löschen? Das kann nicht rückgängig gemacht werden.",

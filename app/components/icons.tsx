@@ -148,6 +148,16 @@ export function IconDownload(props: IconProps) {
   );
 }
 
+export function IconShare(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M12 14.2V3.8" />
+      <path d="M8 7.8 12 3.8l4 4" />
+      <path d="M4.5 16.6v1.9A1.6 1.6 0 0 0 6.1 20h11.8a1.6 1.6 0 0 0 1.6-1.5v-1.9" />
+    </Svg>
+  );
+}
+
 export function IconSparkles(props: IconProps) {
   return (
     <Svg {...props}>

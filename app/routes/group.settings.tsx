@@ -8,7 +8,14 @@ import { LOCALES, LOCALE_LABELS, type Locale } from "../lib/i18n";
 import { submitOp } from "../lib/client/outbox";
 import { forgetDeviceGroup } from "../lib/client/idb";
 import { readClaim, writeClaim } from "../lib/client/claim";
-import { IconCheck, IconCopy, IconDownload, IconPlus, IconTrash } from "../components/icons";
+import {
+  IconCheck,
+  IconCopy,
+  IconDownload,
+  IconPlus,
+  IconShare,
+  IconTrash,
+} from "../components/icons";
 
 export default function Settings() {
   const { snapshot } = useGroup();
@@ -98,6 +105,28 @@ export default function Settings() {
   const inviteUrl =
     typeof window !== "undefined" ? `${window.location.origin}/g/${group.slug}` : `/g/${group.slug}`;
 
+  function copyInvite() {
+    void navigator.clipboard.writeText(inviteUrl).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    });
+  }
+
+  // Native share sheet where supported (mobile Safari/Chrome); desktop
+  // browsers mostly don't implement navigator.share at all, so fall back to
+  // the same copy-to-clipboard behavior as the Copy button.
+  async function shareInvite() {
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: group.name, url: inviteUrl });
+        return;
+      } catch {
+        return; // user cancelled the share sheet — don't fall back to copy
+      }
+    }
+    copyInvite();
+  }
+
   return (
     <main className="animate-rise px-4 pb-16 pt-6">
       <header className="flex items-center justify-between">
@@ -158,21 +187,17 @@ export default function Settings() {
           <p className="mb-2 text-xs text-[var(--text-muted)]">{t.inviteHint}</p>
           <div className="flex gap-2">
             <input readOnly value={inviteUrl} className="input text-xs" />
-            <button
-              onClick={() => {
-                void navigator.clipboard.writeText(inviteUrl).then(() => {
-                  setCopied(true);
-                  setTimeout(() => setCopied(false), 1500);
-                });
-              }}
-              className="btn btn-outline"
-            >
+            <button onClick={copyInvite} className="btn btn-outline">
               {copied ? (
                 <IconCheck className="animate-pop size-[1.1em]" />
               ) : (
                 <IconCopy className="size-[1.1em]" />
               )}
               {copied ? t.linkCopied : t.copyLink}
+            </button>
+            <button onClick={shareInvite} className="btn btn-outline">
+              <IconShare className="size-[1.1em]" />
+              {t.shareLink}
             </button>
           </div>
         </section>

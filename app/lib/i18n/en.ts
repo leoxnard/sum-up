@@ -26,8 +26,10 @@ export const en = {
   saved: "Saved",
   inviteLink: "Invite link",
   copyLink: "Copy link",
+  shareLink: "Share",
   linkCopied: "Copied!",
-  inviteHint: "Anyone with this link can see and edit the whole group.",
+  inviteHint:
+    "Anyone with this link can see and edit the whole group. Share it with everyone in the group — it's the only way back in if you ever lose access on this device.",
   exportCsv: "Export CSV",
   deleteGroup: "Delete group",
   deleteGroupConfirm: "Delete this group and all its entries for everyone? This cannot be undone.",
