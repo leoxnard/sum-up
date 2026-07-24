@@ -8,6 +8,7 @@ import { LOCALES, LOCALE_LABELS, type Locale } from "../lib/i18n";
 import { submitOp } from "../lib/client/outbox";
 import { forgetDeviceGroup } from "../lib/client/idb";
 import { readClaim, writeClaim } from "../lib/client/claim";
+import { IconCheck, IconCopy, IconDownload, IconPlus, IconTrash } from "../components/icons";
 
 export default function Settings() {
   const { snapshot } = useGroup();
@@ -98,10 +99,10 @@ export default function Settings() {
     typeof window !== "undefined" ? `${window.location.origin}/g/${group.slug}` : `/g/${group.slug}`;
 
   return (
-    <main className="px-4 pb-16 pt-6">
+    <main className="animate-rise px-4 pb-16 pt-6">
       <header className="flex items-center justify-between">
-        <h1 className="text-xl font-bold">{t.settings}</h1>
-        <Link to={`/g/${group.slug}`} className="text-sm text-neutral-500">
+        <h1 className="text-xl font-bold tracking-tight">{t.settings}</h1>
+        <Link to={`/g/${group.slug}`} className="btn btn-ghost -mr-3">
           {t.cancel}
         </Link>
       </header>
@@ -113,11 +114,11 @@ export default function Settings() {
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className={inputClass}
+              className="input"
             />
             <button
               onClick={() => name.trim() && saveGroup({ name: name.trim() })}
-              className="rounded-xl bg-[var(--accent)] px-4 text-sm font-semibold text-white"
+              className="btn btn-primary"
             >
               {t.saveChanges}
             </button>
@@ -131,23 +132,32 @@ export default function Settings() {
               <button
                 key={key}
                 aria-label={key}
+                aria-pressed={group.accentColor === key}
                 onClick={() => saveGroup({ accentColor: key })}
-                className={`size-9 rounded-full border-2 ${
-                  group.accentColor === key
-                    ? "border-neutral-900 dark:border-white"
-                    : "border-transparent"
+                className={`grid size-9 place-items-center rounded-full text-white transition-transform duration-200 ease-[var(--ease-out)] hover:scale-110 active:scale-95 ${
+                  group.accentColor === key ? "scale-110 ring-2 ring-offset-2" : ""
                 }`}
-                style={{ backgroundColor: ACCENTS[key].strong }}
-              />
+                style={{
+                  backgroundColor: ACCENTS[key].strong,
+                  ...(group.accentColor === key
+                    ? ({
+                        "--tw-ring-color": ACCENTS[key].strong,
+                        "--tw-ring-offset-color": "var(--page)",
+                      } as React.CSSProperties)
+                    : {}),
+                }}
+              >
+                {group.accentColor === key && <IconCheck className="animate-pop size-4" />}
+              </button>
             ))}
           </div>
         </section>
 
         <section>
           <Label>{t.inviteLink}</Label>
-          <p className="mb-2 text-xs text-neutral-500">{t.inviteHint}</p>
+          <p className="mb-2 text-xs text-[var(--text-muted)]">{t.inviteHint}</p>
           <div className="flex gap-2">
-            <input readOnly value={inviteUrl} className={`${inputClass} text-xs`} />
+            <input readOnly value={inviteUrl} className="input text-xs" />
             <button
               onClick={() => {
                 void navigator.clipboard.writeText(inviteUrl).then(() => {
@@ -155,8 +165,13 @@ export default function Settings() {
                   setTimeout(() => setCopied(false), 1500);
                 });
               }}
-              className="whitespace-nowrap rounded-xl border border-[var(--accent)] px-3 text-sm font-semibold text-[var(--accent)]"
+              className="btn btn-outline"
             >
+              {copied ? (
+                <IconCheck className="animate-pop size-[1.1em]" />
+              ) : (
+                <IconCopy className="size-[1.1em]" />
+              )}
               {copied ? t.linkCopied : t.copyLink}
             </button>
           </div>
@@ -164,26 +179,31 @@ export default function Settings() {
 
         <section>
           <Label>{t.members}</Label>
-          <div className="divide-y divide-neutral-100 overflow-hidden rounded-2xl border border-neutral-200 bg-white dark:divide-neutral-800 dark:border-neutral-800 dark:bg-neutral-900">
+          <div className="card row-divider overflow-hidden">
             {snapshot.members.map((member) => (
-              <div key={member.id} className="flex items-center gap-2 px-4 py-2.5">
+              <div key={member.id} className="flex items-center gap-1 px-4 py-2">
                 <span className="min-w-0 flex-1 truncate font-medium">{member.name}</span>
                 <button
                   onClick={() => renameMember(member.id, member.name)}
-                  className="text-xs text-neutral-500"
+                  className="btn btn-ghost h-9 text-xs"
                 >
                   {t.renameMember}
                 </button>
                 {usedMemberIds.has(member.id) ? (
-                  <span className="text-xs text-neutral-300 dark:text-neutral-600" title={t.memberInUse}>
-                    {t.removeMember}
+                  <span
+                    className="grid size-9 place-items-center text-[var(--line-strong)]"
+                    title={t.memberInUse}
+                    aria-label={t.removeMember}
+                  >
+                    <IconTrash className="size-4" />
                   </span>
                 ) : (
                   <button
                     onClick={() => removeMember(member.id)}
-                    className="text-xs text-rose-600"
+                    aria-label={t.removeMember}
+                    className="btn-icon size-9 hover:bg-rose-500/10 hover:text-rose-600"
                   >
-                    {t.removeMember}
+                    <IconTrash className="size-4" />
                   </button>
                 )}
               </div>
@@ -195,12 +215,13 @@ export default function Settings() {
               onChange={(e) => setNewMember(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && void addMember()}
               placeholder={t.memberName}
-              className={inputClass}
+              className="input"
             />
             <button
               onClick={() => void addMember()}
-              className="whitespace-nowrap rounded-xl border border-[var(--accent)] px-3 text-sm font-semibold text-[var(--accent)]"
+              className="btn btn-outline"
             >
+              <IconPlus className="size-[1.1em]" />
               {t.addMember}
             </button>
           </div>
@@ -213,11 +234,7 @@ export default function Settings() {
               <button
                 key={l}
                 onClick={() => switchLocale(l)}
-                className={`rounded-xl px-4 py-2 text-sm font-semibold ${
-                  locale === l
-                    ? "bg-[var(--accent)] text-white"
-                    : "border border-neutral-300 dark:border-neutral-700"
-                }`}
+                className={`btn ${locale === l ? "btn-primary" : "btn-neutral"}`}
               >
                 {LOCALE_LABELS[l]}
               </button>
@@ -228,14 +245,16 @@ export default function Settings() {
         <section>
           <a
             href={`/g/${group.slug}/export.csv`}
-            className="block rounded-xl border border-neutral-300 px-4 py-2.5 text-center text-sm font-semibold dark:border-neutral-700"
+            className="btn btn-neutral w-full"
           >
-            ⬇️ {t.exportCsv}
+            <IconDownload className="size-[1.1em]" />
+            {t.exportCsv}
           </a>
         </section>
 
-        <section className="border-t border-neutral-200 pt-4 dark:border-neutral-800">
-          <button onClick={() => void deleteGroup()} className="text-sm font-semibold text-rose-600">
+        <section className="border-t border-[var(--line)] pt-4">
+          <button onClick={() => void deleteGroup()} className="btn btn-danger -ml-3">
+            <IconTrash className="size-[1.05em]" />
             {t.deleteGroup}
           </button>
         </section>
@@ -244,12 +263,9 @@ export default function Settings() {
   );
 }
 
-const inputClass =
-  "w-full rounded-xl border border-neutral-200 bg-white px-3 py-2.5 dark:border-neutral-700 dark:bg-neutral-900";
-
 function Label({ children }: { children: React.ReactNode }) {
   return (
-    <div className="mb-1.5 text-sm font-semibold text-neutral-600 dark:text-neutral-300">
+    <div className="mb-1.5 text-sm font-medium text-[var(--text-muted)]">
       {children}
     </div>
   );

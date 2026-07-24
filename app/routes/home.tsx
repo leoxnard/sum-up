@@ -5,6 +5,7 @@ import type { Route } from "./+types/home";
 import { useT } from "../root";
 import { listDeviceGroups, type DeviceGroup } from "../lib/client/idb";
 import { accentStrong } from "../lib/accent";
+import { IconArrowRight, IconPlus } from "../components/icons";
 
 export function meta(_: Route.MetaArgs) {
   return [
@@ -36,49 +37,61 @@ export default function Home() {
   }
 
   return (
-    <main className="mx-auto min-h-dvh max-w-lg px-4 pb-16 pt-10">
-      <h1 className="text-3xl font-extrabold tracking-tight">
-        Sum <span className="text-[var(--accent)]">Up</span>
-      </h1>
-      <p className="mt-1 text-neutral-500">{t.homeTagline}</p>
+    <main className="mx-auto min-h-dvh max-w-lg px-4 pb-16 pt-12">
+      <header className="animate-rise">
+        <h1 className="text-4xl font-extrabold tracking-tight">
+          Sum <span className="text-[var(--accent)]">Up</span>
+        </h1>
+        <p className="mt-1.5 text-[var(--text-muted)]">{t.homeTagline}</p>
+      </header>
 
-      <section className="mt-8">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-500">
-          {t.yourGroups}
-        </h2>
-        <div className="mt-2 flex flex-col gap-2">
-          {groups === null ? null : groups.length === 0 ? (
-            <p className="text-sm text-neutral-500">{t.noGroupsYet}</p>
+      <section className="mt-9">
+        <h2 className="section-label">{t.yourGroups}</h2>
+        <div className="mt-2.5 flex flex-col gap-2">
+          {groups === null ? (
+            <>
+              <div className="skeleton h-[4.25rem] rounded-[var(--radius-card)]" />
+              <div className="skeleton h-[4.25rem] rounded-[var(--radius-card)] opacity-60" />
+            </>
+          ) : groups.length === 0 ? (
+            <p className="card animate-pop px-4 py-6 text-center text-sm text-[var(--text-muted)]">
+              {t.noGroupsYet}
+            </p>
           ) : (
-            groups.map((group) => (
-              <Link
-                key={group.slug}
-                to={`/g/${group.slug}`}
-                className="flex items-center gap-3 rounded-2xl border border-neutral-200 bg-white px-4 py-3.5 shadow-sm dark:border-neutral-800 dark:bg-neutral-900"
-              >
-                <span
-                  className="size-3.5 shrink-0 rounded-full"
-                  style={{ backgroundColor: accentStrong(group.accentColor) }}
-                />
-                <span className="min-w-0 flex-1 truncate font-semibold">{group.name}</span>
-                <span className="text-xs text-neutral-400">{group.baseCurrency}</span>
-              </Link>
-            ))
+            <div className="stagger flex flex-col gap-2">
+              {groups.map((group, index) => (
+                <Link
+                  key={group.slug}
+                  to={`/g/${group.slug}`}
+                  style={
+                    {
+                      "--i": index,
+                      "--group-accent": accentStrong(group.accentColor),
+                    } as React.CSSProperties
+                  }
+                  className="card pressable group-card group flex items-center gap-3.5 px-4 py-4"
+                >
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate font-semibold">{group.name}</span>
+                    <span className="block text-xs text-[var(--text-muted)]">
+                      {group.baseCurrency}
+                    </span>
+                  </span>
+                  <IconArrowRight className="size-4 shrink-0 text-[var(--text-muted)] transition-transform duration-200 group-hover:translate-x-0.5" />
+                </Link>
+              ))}
+            </div>
           )}
         </div>
-        <Link
-          to="/new"
-          className="mt-4 block rounded-2xl bg-[var(--accent)] px-4 py-3.5 text-center font-semibold text-white shadow-lg"
-        >
-          + {t.createGroup}
+        <Link to="/new" className="btn btn-primary btn-lg mt-4 w-full">
+          <IconPlus className="size-[1.1em]" />
+          {t.createGroup}
         </Link>
       </section>
 
       <section className="mt-10">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-500">
-          {t.joinGroup}
-        </h2>
-        <div className="mt-2 flex gap-2">
+        <h2 className="section-label">{t.joinGroup}</h2>
+        <div className="mt-2.5 flex gap-2">
           <input
             value={joinValue}
             onChange={(e) => {
@@ -87,19 +100,18 @@ export default function Home() {
             }}
             onKeyDown={(e) => e.key === "Enter" && join()}
             placeholder={t.joinByCode}
-            className="w-full rounded-xl border border-neutral-200 bg-white px-3 py-2.5 dark:border-neutral-700 dark:bg-neutral-900"
+            className="input"
           />
-          <button
-            onClick={join}
-            className="rounded-xl border border-[var(--accent)] px-4 text-sm font-semibold text-[var(--accent)]"
-          >
+          <button onClick={join} className="btn btn-outline">
             {t.join}
           </button>
         </div>
-        {joinError && <p className="mt-1 text-sm text-rose-600">{t.joinInvalid}</p>}
+        {joinError && (
+          <p className="animate-pop mt-1.5 text-sm text-rose-600">{t.joinInvalid}</p>
+        )}
       </section>
 
-      <p className="mt-14 text-center text-xs text-neutral-400">{t.installHint}</p>
+      <p className="mt-14 text-center text-xs text-[var(--text-muted)]">{t.installHint}</p>
     </main>
   );
 }

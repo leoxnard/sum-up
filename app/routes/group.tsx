@@ -131,12 +131,13 @@ export default function GroupLayout({ loaderData }: Route.ComponentProps) {
       style={{ "--accent": accentStrong(snapshot.group.accentColor) } as React.CSSProperties}
     >
       {offline && (
-        <div className="bg-amber-100 px-4 py-2 text-center text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-200">
+        <div className="animate-slide-up bg-amber-100 px-4 py-2 text-center text-sm font-medium text-amber-900 dark:bg-amber-950 dark:text-amber-200">
           {t.offlineBanner}
         </div>
       )}
       {!offline && pending > 0 && (
-        <div className="bg-neutral-200 px-4 py-1.5 text-center text-xs text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300">
+        <div className="animate-slide-up flex items-center justify-center gap-2 bg-[var(--surface-sunken)] px-4 py-1.5 text-center text-xs font-medium text-[var(--text-muted)]">
+          <span className="size-1.5 animate-pulse rounded-full bg-[var(--accent)]" />
           {t.syncPending(pending)}
         </div>
       )}
@@ -164,23 +165,24 @@ function ClaimScreen({
 }) {
   const { t } = useT();
   return (
-    <main className="px-4 py-10">
-      <h1 className="text-2xl font-bold">{snapshot.group.name}</h1>
-      <h2 className="mt-6 text-lg font-semibold">{t.whoAreYou}</h2>
-      <p className="mt-1 text-sm text-neutral-500">{t.whoAreYouHint}</p>
-      <div className="mt-6 flex flex-col gap-2">
-        {snapshot.members.map((member) => (
+    <main className="animate-rise px-4 py-10">
+      <h1 className="text-2xl font-bold tracking-tight">{snapshot.group.name}</h1>
+      <h2 className="mt-7 text-lg font-semibold">{t.whoAreYou}</h2>
+      <p className="mt-1 text-sm text-[var(--text-muted)]">{t.whoAreYouHint}</p>
+      <div className="stagger mt-6 flex flex-col gap-2">
+        {snapshot.members.map((member, index) => (
           <button
             key={member.id}
             onClick={() => onClaim(member.id)}
-            className="rounded-xl border border-neutral-200 bg-white px-4 py-3 text-left text-base font-medium shadow-sm active:scale-[0.99] dark:border-neutral-800 dark:bg-neutral-900"
+            style={{ "--i": index } as React.CSSProperties}
+            className="card pressable px-4 py-3.5 text-left text-base font-medium"
           >
             {member.name}
           </button>
         ))}
         <button
           onClick={() => onClaim("")}
-          className="mt-2 px-4 py-2 text-sm text-neutral-500"
+          className="btn btn-ghost mt-2 self-start -ml-3"
         >
           {t.notInList}
         </button>
@@ -192,10 +194,10 @@ function ClaimScreen({
 export function ErrorBoundary() {
   const { t } = useT();
   return (
-    <main className="mx-auto max-w-md px-4 pt-16 text-center">
+    <main className="animate-rise mx-auto max-w-md px-4 pt-16 text-center">
       <h1 className="text-xl font-bold">{t.notFound}</h1>
-      <p className="mt-2 text-neutral-500">{t.groupNotFound}</p>
-      <Link to="/" className="mt-6 inline-block font-medium text-[var(--accent)]">
+      <p className="mt-2 text-[var(--text-muted)]">{t.groupNotFound}</p>
+      <Link to="/" className="btn btn-outline mt-6">
         {t.backHome}
       </Link>
     </main>

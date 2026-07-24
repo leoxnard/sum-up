@@ -3,7 +3,11 @@ import { loadSnapshot } from "../lib/server/queries.server";
 import { toBaseCents } from "../lib/money";
 
 function csvCell(value: string | number | null): string {
-  const s = String(value ?? "");
+  let s = String(value ?? "");
+  // Neutralize formula injection: a leading =, +, -, or @ is interpreted as a
+  // live formula by Excel/Sheets. Anyone with the group link can set a title,
+  // so this is untrusted input as far as the exported file is concerned.
+  if (/^[=+\-@]/.test(s)) s = `'${s}`;
   return /[",\n;]/.test(s) ? `"${s.replaceAll('"', '""')}"` : s;
 }
 

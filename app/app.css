@@ -1,25 +1,65 @@
 @import "tailwindcss";
 
 @theme {
-  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif,
-    "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+    Roboto, "Helvetica Neue", sans-serif;
 }
 
 :root {
   /* Per-group accent, overridden inline by the group layout. */
   --accent: #047857;
   --accent-soft: #03402f;
+
+  /* One height for every interactive control, so a button next to an input
+     lines up instead of being a few pixels short. */
+  --control-h: 2.875rem;
+  --control-h-lg: 3.25rem;
+  --radius-control: 0.875rem;
+  --radius-card: 1.125rem;
+
+  --page: #fafafa;
+  --surface: #ffffff;
+  --surface-sunken: #f1f1f3;
+  --line: #e6e6ea;
+  --line-strong: #d3d3da;
+  --text-muted: #71717a;
+
+  --shadow-card: 0 1px 2px rgb(9 9 11 / 0.04), 0 1px 3px rgb(9 9 11 / 0.05);
+  --shadow-raised: 0 10px 24px -10px rgb(9 9 11 / 0.28),
+    0 2px 6px -2px rgb(9 9 11 / 0.1);
+  --shadow-pop: 0 18px 40px -16px rgb(9 9 11 / 0.35);
+
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%2371717a' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m4 6.5 4 4 4-4'/%3E%3C/svg%3E");
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --page: #09090b;
+    --surface: #161619;
+    --surface-sunken: #1f1f23;
+    --line: #27272b;
+    --line-strong: #3a3a41;
+    --text-muted: #8b8b94;
+
+    --shadow-card: 0 1px 2px rgb(0 0 0 / 0.4);
+    --shadow-raised: 0 10px 24px -10px rgb(0 0 0 / 0.7),
+      0 2px 6px -2px rgb(0 0 0 / 0.5);
+    --shadow-pop: 0 18px 40px -16px rgb(0 0 0 / 0.8);
+    --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%238b8b94' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m4 6.5 4 4 4-4'/%3E%3C/svg%3E");
+  }
 }
 
 html,
 body {
-  @apply bg-neutral-50 text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100;
+  background: var(--page);
+  @apply text-neutral-900 dark:text-neutral-100;
   padding: env(safe-area-inset-top) env(safe-area-inset-right)
     env(safe-area-inset-bottom) env(safe-area-inset-left);
-
-  @media (prefers-color-scheme: dark) {
-    color-scheme: dark;
-  }
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  font-feature-settings: "cv05" 1, "ss01" 1;
 }
 
 /* Big, honest touch targets everywhere. */
@@ -29,4 +69,400 @@ input,
 select,
 textarea {
   touch-action: manipulation;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+@layer components {
+  /* ---- Surfaces ---------------------------------------------------- */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-card);
+    box-shadow: var(--shadow-card);
+  }
+
+  .row-divider > * + * {
+    border-top: 1px solid var(--line);
+  }
+
+  /* ---- Controls ---------------------------------------------------- */
+  .input {
+    display: block;
+    width: 100%;
+    height: var(--control-h);
+    padding-inline: 0.875rem;
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius-control);
+    background: var(--surface);
+    color: inherit;
+    font-size: 1rem;
+    line-height: 1;
+    transition:
+      border-color 0.18s ease,
+      box-shadow 0.18s ease,
+      background-color 0.18s ease;
+  }
+
+  .input::placeholder {
+    color: var(--text-muted);
+    opacity: 0.75;
+  }
+
+  .input:hover:not(:disabled) {
+    border-color: color-mix(in oklab, var(--accent) 35%, var(--line-strong));
+  }
+
+  .input:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3.5px color-mix(in oklab, var(--accent) 18%, transparent);
+  }
+
+  select.input {
+    appearance: none;
+    padding-right: 2.25rem;
+    background-image: var(--chevron);
+    background-position: right 0.85rem center;
+    background-size: 1.05rem 1.05rem;
+    background-repeat: no-repeat;
+  }
+
+  /* Date inputs keep the native picker but shed the platform chrome that
+     makes them a different height from every other field. */
+  input[type="date"].input {
+    -webkit-appearance: none;
+    min-height: var(--control-h);
+  }
+
+  input[type="date"].input::-webkit-calendar-picker-indicator {
+    opacity: 0.55;
+    cursor: pointer;
+  }
+
+  /* ---- Buttons ----------------------------------------------------- */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    height: var(--control-h);
+    padding-inline: 1.1rem;
+    border-radius: var(--radius-control);
+    border: 1px solid transparent;
+    font-size: 0.9375rem;
+    font-weight: 600;
+    line-height: 1;
+    white-space: nowrap;
+    cursor: pointer;
+    transition:
+      transform 0.16s var(--ease-out),
+      background-color 0.18s ease,
+      border-color 0.18s ease,
+      box-shadow 0.18s ease,
+      opacity 0.18s ease;
+  }
+
+  .btn:active:not(:disabled) {
+    transform: scale(0.965);
+  }
+
+  .btn:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+
+  .btn-lg {
+    height: var(--control-h-lg);
+    border-radius: var(--radius-card);
+    font-size: 1rem;
+  }
+
+  .btn-primary {
+    background: var(--accent);
+    color: #fff;
+    box-shadow: var(--shadow-raised);
+  }
+
+  .btn-primary:hover:not(:disabled) {
+    background: color-mix(in oklab, var(--accent) 88%, white);
+  }
+
+  .btn-outline {
+    border-color: color-mix(in oklab, var(--accent) 45%, transparent);
+    color: var(--accent);
+    background: color-mix(in oklab, var(--accent) 6%, transparent);
+  }
+
+  .btn-outline:hover:not(:disabled) {
+    border-color: var(--accent);
+    background: color-mix(in oklab, var(--accent) 12%, transparent);
+  }
+
+  .btn-neutral {
+    background: var(--surface);
+    border-color: var(--line-strong);
+    box-shadow: var(--shadow-card);
+  }
+
+  .btn-neutral:hover:not(:disabled) {
+    border-color: var(--text-muted);
+  }
+
+  .btn-ghost {
+    color: var(--text-muted);
+    padding-inline: 0.75rem;
+  }
+
+  .btn-ghost:hover:not(:disabled) {
+    background: var(--surface-sunken);
+    color: inherit;
+  }
+
+  .btn-danger {
+    color: #e11d48;
+  }
+
+  .btn-danger:hover:not(:disabled) {
+    background: color-mix(in oklab, #e11d48 10%, transparent);
+  }
+
+  /* Circular icon-only control in headers. */
+  .btn-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: 999px;
+    color: var(--text-muted);
+    transition:
+      background-color 0.18s ease,
+      color 0.18s ease,
+      transform 0.16s var(--ease-out);
+  }
+
+  .btn-icon:hover {
+    background: var(--surface-sunken);
+    color: inherit;
+  }
+
+  .btn-icon:active {
+    transform: scale(0.9);
+  }
+
+  /* ---- Segmented control ------------------------------------------- */
+  .segment {
+    display: grid;
+    gap: 0.25rem;
+    padding: 0.25rem;
+    border-radius: var(--radius-control);
+    background: var(--surface-sunken);
+  }
+
+  .segment-item {
+    border-radius: calc(var(--radius-control) - 0.3rem);
+    padding: 0.5rem 0.25rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    transition:
+      background-color 0.2s ease,
+      color 0.2s ease,
+      box-shadow 0.2s ease,
+      transform 0.16s var(--ease-out);
+  }
+
+  .segment-item:active {
+    transform: scale(0.96);
+  }
+
+  .segment-item[aria-pressed="true"] {
+    background: var(--surface);
+    color: inherit;
+    box-shadow: var(--shadow-card);
+  }
+
+  /* ---- Checkbox ---------------------------------------------------- */
+  .checkbox {
+    appearance: none;
+    flex-shrink: 0;
+    width: 1.35rem;
+    height: 1.35rem;
+    border-radius: 0.45rem;
+    border: 1.5px solid var(--line-strong);
+    background-color: var(--surface);
+    background-position: center;
+    background-repeat: no-repeat;
+    background-size: 0.85rem;
+    cursor: pointer;
+    transition:
+      background-color 0.18s ease,
+      border-color 0.18s ease,
+      transform 0.16s var(--ease-out);
+  }
+
+  .checkbox:hover {
+    border-color: var(--accent);
+  }
+
+  .checkbox:active {
+    transform: scale(0.88);
+  }
+
+  .checkbox:checked {
+    background-color: var(--accent);
+    border-color: var(--accent);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='white' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m3 8.5 3.2 3.2L13 4.8'/%3E%3C/svg%3E");
+  }
+
+  /* ---- Category / entry glyph -------------------------------------- */
+  .glyph {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.375rem;
+    height: 2.375rem;
+    flex-shrink: 0;
+    border-radius: 0.75rem;
+    background: color-mix(in oklab, var(--accent) 12%, transparent);
+    color: var(--accent);
+  }
+
+  .section-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+
+  /* Pressable list rows: subtle lift on hover, squish on tap. */
+  .pressable {
+    transition:
+      transform 0.16s var(--ease-out),
+      border-color 0.18s ease,
+      box-shadow 0.18s ease;
+  }
+
+  .pressable:hover {
+    border-color: var(--line-strong);
+    box-shadow: var(--shadow-raised);
+  }
+
+  .pressable:active {
+    transform: scale(0.985);
+  }
+
+  /* A group's row is tinted with its own accent instead of carrying a swatch.
+     Declared after .pressable so its hover border wins the tie. */
+  .group-card {
+    background: color-mix(in oklab, var(--group-accent) 10%, transparent);
+    border-color: color-mix(in oklab, var(--group-accent) 42%, transparent);
+  }
+
+  .group-card:hover {
+    background: color-mix(in oklab, var(--group-accent) 16%, transparent);
+    border-color: color-mix(in oklab, var(--group-accent) 70%, transparent);
+  }
+}
+
+/* ---- Motion -------------------------------------------------------- */
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.94);
+  }
+  100% {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+@keyframes grow-x {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+.animate-rise {
+  animation: rise 0.42s var(--ease-out) both;
+}
+
+.animate-pop {
+  animation: pop 0.32s var(--ease-out) both;
+}
+
+.animate-slide-up {
+  animation: slide-up 0.4s var(--ease-out) both;
+}
+
+/* Children fade in one after another. Set --i on each child. */
+.stagger > * {
+  animation: rise 0.42s var(--ease-out) both;
+  animation-delay: calc(var(--i, 0) * 45ms);
+}
+
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--surface-sunken) 25%,
+    color-mix(in oklab, var(--surface-sunken) 55%, var(--line-strong)) 50%,
+    var(--surface-sunken) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.4s linear infinite;
+}
+
+.bar-fill {
+  transform-origin: left;
+  animation: grow-x 0.7s var(--ease-out) both;
+  transition: width 0.5s var(--ease-out);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

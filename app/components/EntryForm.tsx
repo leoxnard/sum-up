@@ -3,7 +3,8 @@ import { useNavigate } from "react-router";
 
 import { useT } from "../root";
 import { CURRENCIES } from "../lib/currencies";
-import { CATEGORIES, CATEGORY_EMOJI } from "../lib/categories";
+import { CATEGORIES } from "../lib/categories";
+import { IconCamera, IconTrash } from "./icons";
 import { categoryLabel } from "../lib/i18n";
 import { formatCents, parseAmountToCents, toBaseCents } from "../lib/money";
 import { computeShares, type SplitInput } from "../lib/split";
@@ -100,6 +101,41 @@ export function EntryForm({ snapshot, kind, me, entry }: Props) {
       cancelled = true;
     };
   }, [currency, group.baseCurrency, isForeign, rateAuto]);
+
+  /**
+   * In "amounts" mode the last participant's field carries the remainder, so
+   * entering n-1 amounts is enough. It fills in only once every *other*
+   * participant has a number — so with three people it appears while the second
+   * one is being typed, not the first — and it stays a plain editable input:
+   * typing in it wins until one of the other values changes again.
+   */
+  function rebalance(
+    next: Map<string, { included: boolean; raw: string }>,
+    totalCents: number | null,
+    splitMode: SplitMode,
+    skipMemberId?: string,
+  ) {
+    if (splitMode !== "exact" || totalCents == null) return next;
+    const target = [...members].reverse().find((m) => next.get(m.id)?.included);
+    if (!target || target.id === skipMemberId) return next;
+
+    let others = 0;
+    let allOthersFilled = true;
+    for (const member of members) {
+      if (member.id === target.id) continue;
+      const row = next.get(member.id);
+      if (!row?.included) continue;
+      if (row.raw.trim() === "") allOthersFilled = false;
+      others += parseAmountToCents(row.raw) ?? 0;
+    }
+
+    const row = next.get(target.id)!;
+    // Still a gap somewhere above — leave the remainder blank rather than
+    // showing a number that is about to change again.
+    const raw = allOthersFilled ? ((totalCents - others) / 100).toFixed(2) : "";
+    if (raw === row.raw) return next;
+    return new Map(next).set(target.id, { ...row, raw });
+  }
 
   const splitInputs: SplitInput[] = useMemo(
     () =>
@@ -224,10 +260,10 @@ export function EntryForm({ snapshot, kind, me, entry }: Props) {
       : null;
 
   return (
-    <main className="px-4 pb-16 pt-6">
+    <main className="animate-rise px-4 pb-16 pt-6">
       <header className="flex items-center justify-between">
-        <h1 className="text-xl font-bold">{heading}</h1>
-        <button onClick={() => navigate(-1)} className="text-sm text-neutral-500">
+        <h1 className="text-xl font-bold tracking-tight">{heading}</h1>
+        <button onClick={() => navigate(-1)} className="btn btn-ghost -mr-3">
           {t.cancel}
         </button>
       </header>
@@ -239,7 +275,7 @@ export function EntryForm({ snapshot, kind, me, entry }: Props) {
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder={t.titlePlaceholder}
-              className={inputClass}
+              className="input"
               autoFocus={!entry}
             />
           </Field>
@@ -249,10 +285,15 @@ export function EntryForm({ snapshot, kind, me, entry }: Props) {
           <Field label={t.amount} className="flex-1">
             <input
               value={amountRaw}
-              onChange={(e) => setAmountRaw(e.target.value)}
+              onChange={(e) => {
+                setAmountRaw(e.target.value);
+                setRows((current) =>
+                  rebalance(current, parseAmountToCents(e.target.value), mode),
+                );
+              }}
               inputMode="decimal"
               placeholder="0.00"
-              className={`${inputClass} text-lg font-semibold tabular-nums`}
+              className="input text-lg font-semibold tabular-nums"
             />
           </Field>
           <Field label={t.currency}>
@@ -262,7 +303,7 @@ export function EntryForm({ snapshot, kind, me, entry }: Props) {
                 setCurrency(e.target.value);
                 setRateAuto(true);
               }}
-              className={inputClass}
+              className="input"
             >
               {CURRENCIES.map((c) => (
                 <option key={c} value={c}>{c}</option>
@@ -280,7 +321,7 @@ export function EntryForm({ snapshot, kind, me, entry }: Props) {
                 setRateAuto(false);
               }}
               inputMode="decimal"
-              className={`${inputClass} tabular-nums`}
+              className="input tabular-nums"
             />
             {rateFailed && rateAuto !== false && (
               <p className="mt-1 text-xs text-amber-600">{t.rateUnavailable}</p>
@@ -308,58 +349,80 @@ export function EntryForm({ snapshot, kind, me, entry }: Props) {
 
         {kind === "expense" && (
           <Field label={t.splitBetween}>
-            <div className="mb-2 grid grid-cols-4 gap-1 rounded-xl bg-neutral-200 p-1 dark:bg-neutral-800">
+            <div className="segment mb-2 grid-cols-4">
               {(["equal", "exact", "percent", "shares"] as const).map((m) => (
                 <button
                   key={m}
                   type="button"
-                  onClick={() => setMode(m)}
-                  className={`rounded-lg px-1 py-1.5 text-xs font-semibold ${
-                    mode === m
-                      ? "bg-white text-neutral-900 shadow dark:bg-neutral-600 dark:text-white"
-                      : "text-neutral-500 dark:text-neutral-400"
-                  }`}
+                  aria-pressed={mode === m}
+                  onClick={() => {
+                    setMode(m);
+                    setRows((current) => rebalance(current, amountCents, m));
+                  }}
+                  className="segment-item"
                 >
                   {m === "equal" ? t.splitEqual : m === "exact" ? t.splitExact : m === "percent" ? t.splitPercent : t.splitShares}
                 </button>
               ))}
             </div>
-            <div className="overflow-hidden rounded-xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
+            <div className="card row-divider overflow-hidden">
               {members.map((member, index) => {
                 const row = rows.get(member.id) ?? { included: true, raw: "" };
-                const shareCents =
-                  split?.ok && row.included
-                    ? split.shares.find((s) => s.memberId === member.id)?.shareCents
-                    : undefined;
+                // Shown in a slot that is always reserved, so the row doesn't
+                // reflow the moment the split starts adding up. While the sum
+                // is still off, exact mode can at least echo what was typed.
+                const shareCents = split?.ok
+                  ? split.shares.find((s) => s.memberId === member.id)?.shareCents
+                  : mode === "exact"
+                    ? parseAmountToCents(row.raw)
+                    : null;
                 return (
                   <label
                     key={member.id}
-                    className="flex items-center gap-3 border-b border-neutral-100 px-3.5 py-2.5 last:border-b-0 dark:border-neutral-800"
+                    className="flex cursor-pointer items-center gap-3 px-3.5 py-2.5 transition-colors hover:bg-[var(--surface-sunken)]"
                   >
                     <input
                       type="checkbox"
                       checked={row.included}
                       onChange={(e) =>
-                        setRows(new Map(rows).set(member.id, { ...row, included: e.target.checked }))
+                        setRows(
+                          rebalance(
+                            new Map(rows).set(member.id, {
+                              ...row,
+                              included: e.target.checked,
+                            }),
+                            amountCents,
+                            mode,
+                          ),
+                        )
                       }
-                      className="size-5 accent-[var(--accent)]"
+                      className="checkbox"
                     />
                     <span className="min-w-0 flex-1 truncate font-medium">{member.name}</span>
                     {mode !== "equal" && row.included && (
                       <input
                         value={row.raw}
                         onChange={(e) =>
-                          setRows(new Map(rows).set(member.id, { ...row, raw: e.target.value }))
+                          setRows(
+                            rebalance(
+                              new Map(rows).set(member.id, { ...row, raw: e.target.value }),
+                              amountCents,
+                              mode,
+                              member.id,
+                            ),
+                          )
                         }
                         inputMode="decimal"
                         placeholder={mode === "shares" ? "1" : mode === "percent" ? "0" : "0.00"}
-                        className="w-20 rounded-lg border border-neutral-200 bg-neutral-50 px-2 py-1 text-right tabular-nums dark:border-neutral-700 dark:bg-neutral-800"
+                        className="input h-9 w-20 bg-[var(--surface-sunken)] px-2.5 text-right text-sm tabular-nums"
                       />
                     )}
-                    {mode === "percent" && row.included && <span className="text-xs text-neutral-400">%</span>}
-                    {row.included && shareCents !== undefined && (
-                      <span className="w-20 text-right text-xs tabular-nums text-neutral-400">
-                        {formatCents(shareCents, currency, intl)}
+                    {mode === "percent" && row.included && (
+                      <span className="text-xs text-[var(--text-muted)]">%</span>
+                    )}
+                    {row.included && (
+                      <span className="w-20 shrink-0 text-right text-xs tabular-nums text-[var(--text-muted)]">
+                        {shareCents != null ? formatCents(shareCents, currency, intl) : ""}
                       </span>
                     )}
                   </label>
@@ -380,7 +443,7 @@ export function EntryForm({ snapshot, kind, me, entry }: Props) {
               type="date"
               value={date}
               onChange={(e) => setDate(e.target.value)}
-              className={inputClass}
+              className="input"
             />
           </Field>
           {kind === "expense" && (
@@ -388,12 +451,12 @@ export function EntryForm({ snapshot, kind, me, entry }: Props) {
               <select
                 value={category}
                 onChange={(e) => setCategory(e.target.value as CategoryKey | "auto")}
-                className={inputClass}
+                className="input"
               >
-                <option value="auto">✨ {t.categoryAuto}</option>
+                <option value="auto">{t.categoryAuto}</option>
                 {CATEGORIES.map((c) => (
                   <option key={c} value={c}>
-                    {CATEGORY_EMOJI[c]} {categoryLabel(t, c)}
+                    {categoryLabel(t, c)}
                   </option>
                 ))}
               </select>
@@ -406,7 +469,7 @@ export function EntryForm({ snapshot, kind, me, entry }: Props) {
             value={note}
             onChange={(e) => setNote(e.target.value)}
             placeholder={t.notePlaceholder}
-            className={inputClass}
+            className="input"
           />
         </Field>
 
@@ -416,16 +479,17 @@ export function EntryForm({ snapshot, kind, me, entry }: Props) {
               <img
                 src={photoDataUrl ?? existingPhotoUrl ?? undefined}
                 alt=""
-                className="mb-2 max-h-56 rounded-xl object-contain"
+                className="animate-pop mb-2 max-h-56 rounded-[var(--radius-card)] border border-[var(--line)] object-contain"
               />
             )}
             <div className="flex gap-2">
               <button
                 type="button"
                 onClick={() => fileInput.current?.click()}
-                className="rounded-xl border border-neutral-300 px-3 py-2 text-sm font-medium dark:border-neutral-700"
+                className="btn btn-neutral"
               >
-                📷 {t.addPhoto}
+                <IconCamera className="size-[1.15em]" />
+                {t.addPhoto}
               </button>
               {(photoDataUrl || existingPhotoUrl) && (
                 <button
@@ -434,7 +498,7 @@ export function EntryForm({ snapshot, kind, me, entry }: Props) {
                     setPhotoDataUrl(null);
                     setPhotoRemoved(true);
                   }}
-                  className="rounded-xl px-3 py-2 text-sm text-rose-600"
+                  className="btn btn-danger"
                 >
                   {t.removePhoto}
                 </button>
@@ -453,16 +517,18 @@ export function EntryForm({ snapshot, kind, me, entry }: Props) {
           </Field>
         )}
 
-        {error && <p className="text-sm font-medium text-rose-600">{error}</p>}
+        {error && (
+          <p className="animate-pop rounded-xl bg-rose-500/10 px-3.5 py-2.5 text-sm font-medium text-rose-600 dark:text-rose-400">
+            {error}
+          </p>
+        )}
 
-        <button
-          onClick={() => void onSave()}
-          className="mt-2 rounded-2xl bg-[var(--accent)] px-4 py-3.5 text-center text-base font-semibold text-white shadow-lg"
-        >
+        <button onClick={() => void onSave()} className="btn btn-primary btn-lg mt-2">
           {t.save}
         </button>
         {entry && (
-          <button onClick={() => void onDelete()} className="py-2 text-sm font-medium text-rose-600">
+          <button onClick={() => void onDelete()} className="btn btn-danger">
+            <IconTrash className="size-[1.05em]" />
             {t.delete}
           </button>
         )}
@@ -470,9 +536,6 @@ export function EntryForm({ snapshot, kind, me, entry }: Props) {
     </main>
   );
 }
-
-const inputClass =
-  "w-full rounded-xl border border-neutral-200 bg-white px-3 py-2.5 dark:border-neutral-700 dark:bg-neutral-900";
 
 function Field({
   label,
@@ -485,7 +548,7 @@ function Field({
 }) {
   return (
     <div className={className}>
-      <label className="mb-1 block text-sm font-medium text-neutral-600 dark:text-neutral-300">
+      <label className="mb-1.5 block text-sm font-medium text-[var(--text-muted)]">
         {label}
       </label>
       {children}
@@ -503,7 +566,7 @@ function MemberSelect({
   onChange: (id: string) => void;
 }) {
   return (
-    <select value={value} onChange={(e) => onChange(e.target.value)} className={inputClass}>
+    <select value={value} onChange={(e) => onChange(e.target.value)} className="input">
       {members.map((m) => (
         <option key={m.id} value={m.id}>{m.name}</option>
       ))}

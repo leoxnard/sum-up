@@ -10,16 +10,6 @@ export const CATEGORIES: CategoryKey[] = [
   "other",
 ];
 
-export const CATEGORY_EMOJI: Record<CategoryKey, string> = {
-  food: "🍽️",
-  groceries: "🛒",
-  transport: "🚕",
-  accommodation: "🏠",
-  activities: "🎟️",
-  shopping: "🛍️",
-  other: "📎",
-};
-
 // DE + EN keyword lists. Matching is on normalized whole words / prefixes, so
 // "Pizzeria Luigi" hits "pizz". Deliberately conservative: a miss is fine (the
 // LLM pass or the user fixes it); a wrong hit is annoying.
