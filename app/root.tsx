@@ -13,6 +13,7 @@ import type { Route } from "./+types/root";
 import "./app.css";
 import { getLocale } from "./lib/server/cookies.server";
 import { dict, INTL_LOCALE, type Locale } from "./lib/i18n";
+import { Analytics } from "@vercel/analytics/react";
 
 export function loader({ request }: Route.LoaderArgs) {
   return {
@@ -80,6 +81,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
         {children}
         <ScrollRestoration />
         <Scripts />
+        <Analytics />
       </body>
     </html>
   );
