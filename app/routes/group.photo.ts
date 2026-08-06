@@ -13,6 +13,8 @@ export async function loader({ params }: Route.LoaderArgs) {
   return new Response(new Uint8Array(rows[0].data), {
     headers: {
       "Content-Type": rows[0].content_type,
+      // Defense in depth for rows written before the upload allow-list existed.
+      "X-Content-Type-Options": "nosniff",
       // Photo ids are immutable — cache hard.
       "Cache-Control": "public, max-age=31536000, immutable",
     },

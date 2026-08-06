@@ -1,3 +1,5 @@
+import type { Sql, TransactionSql } from "postgres";
+
 import { sql } from "./db.server";
 import { CATEGORIES, categorizeByKeywords, normalizeTitle } from "../categories";
 import { isCurrency } from "../currencies";
@@ -21,6 +23,31 @@ export interface ApplyOutcome {
 }
 
 const ts = (ms: number) => new Date(ms);
+
+/** Receipt image types we are willing to store and serve back same-origin. */
+const PHOTO_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
+
+/**
+ * A manual correction teaches the group: the same title never hits the LLM
+ * again. Called from both paths that can carry a manual pick — `set_category`
+ * and an `upsert_entry` whose categorySource is "manual" — so the two cannot
+ * drift apart. `db` is the connection or the surrounding transaction.
+ */
+async function learnCategoryOverride(
+  db: Sql | TransactionSql,
+  groupId: string,
+  title: string,
+  category: CategoryKey,
+): Promise<void> {
+  const normalized = normalizeTitle(title);
+  if (!normalized) return;
+  await db`
+    insert into category_overrides (group_id, title_normalized, category, updated_at)
+    values (${groupId}, ${normalized}, ${category}, now())
+    on conflict (group_id, title_normalized)
+      do update set category = excluded.category, updated_at = now()
+  `;
+}
 
 /**
  * Apply a batch of sync ops. Idempotent: replaying the same op is a no-op
@@ -48,7 +75,11 @@ export async function applySyncOps(ops: SyncOp[]): Promise<ApplyOutcome> {
       if (error instanceof RejectError) {
         outcome.result.rejected.push({ index, reason: error.message });
       } else {
-        throw error;
+        // Unexpected failure (DB blip, bug). Every op is transactional on its
+        // own, so this must not abort the rest of the batch. Report it as
+        // neither applied nor rejected: the client drops both, and only by
+        // being in neither list does the op stay queued for a later retry.
+        console.error("sync op failed", { index, op: op.op }, error);
       }
     }
   }
@@ -229,6 +260,11 @@ async function applyOne(op: SyncOp, outcome: ApplyOutcome): Promise<boolean> {
           if (op.photoDataUrl) {
             const match = /^data:(image\/[a-z+.-]+);base64,(.+)$/s.exec(op.photoDataUrl);
             if (!match) throw new RejectError("bad_photo");
+            // Allow-list, not just "image/*": photos are served same-origin from
+            // /g/:slug/photo/:id, and an image/svg+xml upload would execute
+            // script on the group's own origin. The client resizer only ever
+            // produces these three anyway.
+            if (!PHOTO_TYPES.has(match[1])) throw new RejectError("bad_photo_type");
             const bytes = Buffer.from(match[2], "base64");
             if (bytes.byteLength > 2_000_000) throw new RejectError("photo_too_large");
             photoId = crypto.randomUUID();
@@ -264,6 +300,13 @@ async function applyOne(op: SyncOp, outcome: ApplyOutcome): Promise<boolean> {
             values (${entry.id}, ${share.memberId}, ${share.shareCents}, ${share.inputValue})
           `;
         }
+
+        // PLAN.md §Auto-categorization step 3: a manual pick teaches the group's
+        // learned table. This is the path the expense form actually uses — it
+        // sends the correction as part of the entry, not as a set_category op.
+        if (entry.kind === "expense" && categorySource === "manual" && category && entry.title) {
+          await learnCategoryOverride(tx, op.groupId, entry.title, category);
+        }
         return true;
       });
 
@@ -297,16 +340,14 @@ async function applyOne(op: SyncOp, outcome: ApplyOutcome): Promise<boolean> {
             updated_at = ${ts(op.clientUpdatedAt)}
         where id = ${op.entryId} and group_id = ${op.groupId} and deleted_at is null
       `;
-      if (op.title) {
-        // Corrections teach the group: same title never needs the API again.
-        await sql`
-          insert into category_overrides (group_id, title_normalized, category, updated_at)
-          values (${op.groupId}, ${normalizeTitle(op.title)}, ${op.category}, now())
-          on conflict (group_id, title_normalized)
-            do update set category = excluded.category, updated_at = now()
-        `;
-      }
+      if (op.title) await learnCategoryOverride(sql, op.groupId, op.title, op.category);
       return true;
     }
+
+    default:
+      // Version skew: a client newer than this server. Rejecting is honest —
+      // falling through would return undefined, which applySyncOps reports as
+      // applied, and the client would delete the op from its outbox.
+      throw new RejectError("unknown_op");
   }
 }

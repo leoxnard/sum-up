@@ -60,6 +60,11 @@ export const links: Route.LinksFunction = () => [
   { rel: "apple-touch-icon", href: "/icons/apple-touch-icon.png" },
 ];
 
+/** Replace a group slug anywhere in the reported URL with a placeholder. */
+export function scrubSlug<T extends { url: string }>(event: T): T {
+  return { ...event, url: event.url.replace(/\/g\/[^/?#]+/, "/g/[slug]") };
+}
+
 export function Layout({ children }: { children: React.ReactNode }) {
   const data = useRouteLoaderData<typeof loader>("root");
   useEffect(() => {
@@ -81,7 +86,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
         {children}
         <ScrollRestoration />
         <Scripts />
-        <Analytics />
+        {/* The slug IS the group's credential and it lives in the path, so it
+            must not leave the device. Analytics still sees which screens are
+            used, just not which group. */}
+        <Analytics beforeSend={scrubSlug} />
       </body>
     </html>
   );

@@ -7,7 +7,7 @@ import { ACCENTS, ACCENT_KEYS, type AccentKey } from "../lib/accent";
 import { LOCALES, LOCALE_LABELS, type Locale } from "../lib/i18n";
 import { submitOp } from "../lib/client/outbox";
 import { forgetDeviceGroup } from "../lib/client/idb";
-import { readClaim, writeClaim } from "../lib/client/claim";
+import { readClaim, writeClaim, writeCookie } from "../lib/client/claim";
 import {
   IconCheck,
   IconCopy,
@@ -98,7 +98,7 @@ export default function Settings() {
   }
 
   function switchLocale(next: Locale) {
-    document.cookie = `sumup_locale=${next}; Path=/; Max-Age=${60 * 60 * 24 * 365}; SameSite=Lax`;
+    writeCookie("sumup_locale", next);
     revalidator.revalidate();
   }
 

@@ -3,6 +3,7 @@ import { applySyncOps } from "../lib/server/sync.server";
 import { ringDoorbell } from "../lib/server/doorbell.server";
 import { categorizeWithGemini } from "../lib/server/gemini.server";
 import { runInBackground } from "../lib/server/background.server";
+import { parseOps } from "../lib/parse-ops";
 import type { SyncOp } from "../lib/types";
 
 export async function action({ request }: Route.ActionArgs) {
@@ -11,9 +12,10 @@ export async function action({ request }: Route.ActionArgs) {
   }
   let ops: SyncOp[];
   try {
-    const body = (await request.json()) as { ops?: SyncOp[] };
-    ops = body.ops ?? [];
-    if (!Array.isArray(ops) || ops.length > 200) throw new Error("bad_ops");
+    const body = (await request.json()) as { ops?: unknown };
+    const parsed = parseOps(body.ops ?? []);
+    if (!parsed || parsed.length > 200) throw new Error("bad_ops");
+    ops = parsed;
   } catch {
     return Response.json({ error: "bad_request" }, { status: 400 });
   }

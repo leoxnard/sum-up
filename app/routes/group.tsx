@@ -28,6 +28,11 @@ import { accentStrong } from "../lib/accent";
 import { useSupabaseConfig, useT } from "../root";
 import type { GroupSnapshot } from "../lib/types";
 
+// A shared group link is a bearer credential — it must never end up in an index.
+export const meta: Route.MetaFunction = () => [
+  { name: "robots", content: "noindex, nofollow" },
+];
+
 export async function loader({ params, request }: Route.LoaderArgs) {
   const snapshot = await loadSnapshot(params.slug);
   if (!snapshot) throw new Response("Not found", { status: 404 });
