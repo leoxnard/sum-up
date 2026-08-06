@@ -3,7 +3,12 @@ import { useEffect, useState } from "react";
 
 import type { Route } from "./+types/home";
 import { useT } from "../root";
-import { listDeviceGroups, type DeviceGroup } from "../lib/client/idb";
+import {
+  forgetDeviceGroup,
+  listDeviceGroups,
+  listOutbox,
+  type DeviceGroup,
+} from "../lib/client/idb";
 import { accentStrong } from "../lib/accent";
 import { IconArrowRight, IconPlus } from "../components/icons";
 
@@ -24,7 +29,33 @@ export default function Home() {
   const [joinError, setJoinError] = useState(false);
 
   useEffect(() => {
-    void listDeviceGroups().then(setGroups);
+    let cancelled = false;
+    void (async () => {
+      const local = await listDeviceGroups();
+      if (cancelled) return;
+      setGroups(local);
+      // Then, if we can reach the server, drop the ones that are gone —
+      // deleted here, or by anyone else holding the link. Groups with queued
+      // writes are skipped: an offline-created group doesn't exist yet.
+      if (!navigator.onLine || local.length === 0) return;
+      const queued = new Set((await listOutbox()).map((item) => item.op.slug));
+      const check = local.map((g) => g.slug).filter((slug) => !queued.has(slug));
+      if (check.length === 0 || cancelled) return;
+      try {
+        const response = await fetch(`/api/groups?slugs=${check.join(",")}`);
+        if (!response.ok) return;
+        const { alive } = (await response.json()) as { alive: string[] };
+        const gone = check.filter((slug) => !alive.includes(slug));
+        if (gone.length === 0 || cancelled) return;
+        for (const slug of gone) await forgetDeviceGroup(slug);
+        if (!cancelled) setGroups(await listDeviceGroups());
+      } catch {
+        // Offline or server down — the list stays exactly as it is.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   function join() {

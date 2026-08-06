@@ -1,11 +1,25 @@
-import { Link, Outlet, useMatches, useOutletContext, useRevalidator } from "react-router";
+import {
+  isRouteErrorResponse,
+  Link,
+  Outlet,
+  useMatches,
+  useOutletContext,
+  useParams,
+  useRevalidator,
+  useRouteError,
+} from "react-router";
 import { useEffect, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 
 import type { Route } from "./+types/group";
 import { loadSnapshot } from "../lib/server/queries.server";
 import { getClaimedMember } from "../lib/server/cookies.server";
-import { getSnapshot, rememberDeviceGroup, saveSnapshot } from "../lib/client/idb";
+import {
+  forgetDeviceGroup,
+  getSnapshot,
+  rememberDeviceGroup,
+  saveSnapshot,
+} from "../lib/client/idb";
 import { overlayOps } from "../lib/client/overlay";
 import { flushOutbox, onOutboxChange, pendingOps } from "../lib/client/outbox";
 import { readClaim, writeClaim } from "../lib/client/claim";
@@ -27,6 +41,14 @@ export async function loader({ params, request }: Route.LoaderArgs) {
 }
 
 export async function clientLoader({ serverLoader, params }: Route.ClientLoaderArgs) {
+  const ops = await pendingOps(params.slug);
+  // A queued delete means the group is gone from this device's point of view,
+  // even while the op is still waiting for the network.
+  if (ops.some((op) => op.op === "delete_group")) {
+    await forgetDeviceGroup(params.slug);
+    throw new Response("Not found", { status: 404 });
+  }
+
   let snapshot: GroupSnapshot | undefined;
   let me: string | null = null;
   let offline = false;
@@ -36,12 +58,20 @@ export async function clientLoader({ serverLoader, params }: Route.ClientLoaderA
     me = data.me;
     await saveSnapshot(snapshot);
   } catch (error) {
+    // A 404 is an answer, not an outage: the group was deleted (possibly by
+    // someone else) or the link is wrong. Drop the local copy instead of
+    // serving a mirror of something that no longer exists.
+    if (isRouteErrorResponse(error) || error instanceof Response) {
+      if (error.status === 404) {
+        await forgetDeviceGroup(params.slug);
+        throw error;
+      }
+    }
     // Network down or server unreachable — serve the mirror if we have one.
     snapshot = await getSnapshot(params.slug);
     if (!snapshot) throw error;
     offline = true;
   }
-  const ops = await pendingOps(params.slug);
   const overlaid = overlayOps(snapshot, ops);
   me ??= readClaim(overlaid.group.id);
   await rememberDeviceGroup({
@@ -196,6 +226,16 @@ function ClaimScreen({
 
 export function ErrorBoundary() {
   const { t } = useT();
+  const error = useRouteError();
+  const params = useParams();
+  const gone = isRouteErrorResponse(error) && error.status === 404;
+
+  // Reaching this screen for a 404 (a direct hit on a stale link, say) is proof
+  // the group is gone — stop listing it on the start screen.
+  useEffect(() => {
+    if (gone && params.slug) void forgetDeviceGroup(params.slug);
+  }, [gone, params.slug]);
+
   return (
     <main className="animate-rise mx-auto max-w-md px-4 pt-16 text-center">
       <h1 className="text-xl font-bold">{t.notFound}</h1>

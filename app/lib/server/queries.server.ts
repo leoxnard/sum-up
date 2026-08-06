@@ -25,6 +25,19 @@ export async function loadGroupBySlug(slug: string): Promise<GroupRow | null> {
   return rows[0] ?? null;
 }
 
+/**
+ * Which of these slugs still exist. Used by the start screen to drop groups
+ * that were deleted (here or on someone else's device) from its device-local
+ * list — knowing a slug is already full access, so this leaks nothing new.
+ */
+export async function filterLiveSlugs(slugs: string[]): Promise<string[]> {
+  if (slugs.length === 0) return [];
+  const rows = await sql<{ slug: string }[]>`
+    select slug from groups where slug in ${sql(slugs)} and deleted_at is null
+  `;
+  return rows.map((row) => row.slug);
+}
+
 export async function loadSnapshot(slug: string): Promise<GroupSnapshot | null> {
   const group = await loadGroupBySlug(slug);
   if (!group) return null;

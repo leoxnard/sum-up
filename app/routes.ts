@@ -5,6 +5,7 @@ export default [
   route("new", "routes/new-group.tsx"),
   route("api/sync", "routes/api.sync.ts"),
   route("api/rates", "routes/api.rates.ts"),
+  route("api/groups", "routes/api.groups.ts"),
   route("g/:slug", "routes/group.tsx", [
     index("routes/group._index.tsx"),
     route("new-expense", "routes/group.new-expense.tsx"),
