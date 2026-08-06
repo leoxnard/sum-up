@@ -10,7 +10,7 @@ import type { CategoryKey } from "../types";
 // rejected as "no longer available to new users", and pro requires billing).
 const DEFAULT_MODELS = ["gemini-flash-lite-latest", "gemini-flash-latest", "gemini-3.1-flash-lite"];
 
-function modelChain(): string[] {
+export function modelChain(): string[] {
   const fromEnv = process.env.GEMINI_MODELS;
   if (!fromEnv) return DEFAULT_MODELS;
   return fromEnv.split(",").map((m) => m.trim()).filter(Boolean);

@@ -1,5 +1,5 @@
 import { sql } from "./db.server";
-import { categorizeByKeywords, normalizeTitle } from "../categories";
+import { CATEGORIES, categorizeByKeywords, normalizeTitle } from "../categories";
 import { isCurrency } from "../currencies";
 import { isAccent } from "../accent";
 import type { CategoryKey, SyncOp, SyncResult } from "../types";
@@ -152,6 +152,9 @@ async function applyOne(op: SyncOp, outcome: ApplyOutcome): Promise<boolean> {
         throw new RejectError("bad_rate");
       }
       if (!/^\d{4}-\d{2}-\d{2}$/.test(entry.expenseDate)) throw new RejectError("bad_date");
+      if (entry.category && !CATEGORIES.includes(entry.category)) {
+        throw new RejectError("bad_category");
+      }
       if (entry.kind === "expense") {
         const sum = entry.shares.reduce((a, s) => a + s.shareCents, 0);
         if (entry.shares.length === 0 || sum !== entry.amountCents) {
@@ -178,10 +181,15 @@ async function applyOne(op: SyncOp, outcome: ApplyOutcome): Promise<boolean> {
       if (referenced.some((id) => !memberIds.has(id))) throw new RejectError("unknown_member");
 
       // Categorization: manual beats learned override beats keywords beats LLM.
+      // A client-sent "llm" source means the category already came from a vision
+      // pass the user saw in the import review — good enough to skip the keyword
+      // guess and a second API call, but not authoritative enough to teach the
+      // group's override table, so a learned override still wins over it.
       let category = entry.category;
       let categorySource = entry.categorySource;
       let needsLlm = false;
       if (entry.kind === "expense" && categorySource !== "manual") {
+        const preset = categorySource === "llm" && category ? category : null;
         const normalized = normalizeTitle(entry.title ?? "");
         const override = await sql<{ category: CategoryKey }[]>`
           select category from category_overrides
@@ -190,6 +198,9 @@ async function applyOne(op: SyncOp, outcome: ApplyOutcome): Promise<boolean> {
         if (override.length > 0) {
           category = override[0].category;
           categorySource = "manual";
+        } else if (preset) {
+          category = preset;
+          categorySource = "llm";
         } else {
           const keyword = categorizeByKeywords(entry.title ?? "");
           if (keyword) {

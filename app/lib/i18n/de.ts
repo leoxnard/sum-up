@@ -91,6 +91,37 @@ export const de: Dictionary = {
   removePhoto: "Foto entfernen",
   save: "Speichern",
   delete: "Löschen",
+  // Import aus Bild
+  importFromImage: "Aus Bild importieren",
+  importShort: "Scannen",
+  importIntro:
+    "Lade einen Screenshot aus deiner Banking-App oder ein Foto von einem Kassenbon hoch — die Ausgaben darauf werden automatisch erkannt.",
+  importPickImage: "Bild auswählen",
+  importTakePhoto: "Foto aufnehmen",
+  importAnalyzing: "Bild wird gelesen…",
+  importAnalyzingHint: "Das dauert ein paar Sekunden.",
+  importOriginal: "Original",
+  importFound: (n: number) => (n === 1 ? "1 Ausgabe gefunden" : `${n} Ausgaben gefunden`),
+  importNothingFound: "Auf diesem Bild wurden keine Ausgaben gefunden.",
+  importUnavailable: "Die Bilderkennung ist auf diesem Server nicht eingerichtet.",
+  importFailed:
+    "Das Bild konnte nicht gelesen werden. Versuch es nochmal oder trag die Ausgabe von Hand ein.",
+  importOffline: "Für die Bilderkennung brauchst du eine Internetverbindung.",
+  importTooLarge: "Dieses Bild ist zu groß.",
+  importRetry: "Anderes Bild",
+  importSelectAll: "Alle auswählen",
+  importDeselectAll: "Alle abwählen",
+  importSelected: (n: number, total: number) => `${n} von ${total} ausgewählt`,
+  importAddSelected: (n: number) =>
+    n === 1 ? "1 Ausgabe hinzufügen" : `${n} Ausgaben hinzufügen`,
+  importPayerForAll: "Alles bezahlt von",
+  importFor: "Für",
+  importEveryone: "Alle",
+  importPhotoAttached: "Das Bild wird als Beleg an die Ausgabe gehängt.",
+  importCheckHint: "Prüf alles, korrigier was falsch ist, dann hinzufügen.",
+  errImportNoneSelected: "Wähle mindestens eine Ausgabe aus.",
+  errImportRow: (title: string) =>
+    `Prüf „${title}“ — Betrag, Aufteilung oder Wechselkurs fehlt.`,
   deleteEntryConfirm: "Diesen Eintrag für alle löschen?",
   cancel: "Zurück",
   // Validation

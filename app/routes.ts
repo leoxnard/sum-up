@@ -9,6 +9,7 @@ export default [
     index("routes/group._index.tsx"),
     route("new-expense", "routes/group.new-expense.tsx"),
     route("new-payment", "routes/group.new-payment.tsx"),
+    route("import", "routes/group.import.tsx"),
     route("entry/:entryId", "routes/group.entry.tsx"),
     route("settle", "routes/group.settle.tsx"),
     route("stats", "routes/group.stats.tsx"),

@@ -11,6 +11,7 @@ import {
   IconChart,
   IconPlus,
   IconSliders,
+  IconSparkles,
 } from "../components/icons";
 import type { Entry } from "../lib/types";
 
@@ -117,6 +118,16 @@ export default function GroupOverview() {
         <div className="pointer-events-auto mx-auto flex max-w-lg gap-2 bg-[var(--page)] px-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
           <Link to="new-payment" className="btn btn-neutral btn-lg flex-1">
             {t.addPayment}
+          </Link>
+          {/* Scan is a shortcut into the same "add expenses" job, so it sits
+              next to the primary action rather than in the header. */}
+          <Link
+            to="import"
+            aria-label={t.importFromImage}
+            title={t.importFromImage}
+            className="btn btn-neutral btn-lg shrink-0 px-0 w-[var(--control-h-lg)]"
+          >
+            <IconSparkles className="size-[1.25em]" />
           </Link>
           <Link to="new-expense" className="btn btn-primary btn-lg flex-[1.6]">
             <IconPlus className="size-[1.1em]" />

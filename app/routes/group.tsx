@@ -1,4 +1,4 @@
-import { Link, Outlet, useOutletContext, useRevalidator } from "react-router";
+import { Link, Outlet, useMatches, useOutletContext, useRevalidator } from "react-router";
 import { useEffect, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 
@@ -124,10 +124,13 @@ export default function GroupLayout({ loaderData }: Route.ComponentProps) {
 
   const context: GroupContext = { snapshot, me: claimed, offline, pending };
   const needsClaim = claimed === null && snapshot.members.length > 0;
+  // Every screen is a phone-width column except the ones that ask for room
+  // (`handle = { wide: true }`) — the image import needs two columns.
+  const wide = useMatches().some((match) => (match.handle as { wide?: boolean })?.wide);
 
   return (
     <div
-      className="mx-auto min-h-dvh max-w-lg"
+      className={`mx-auto min-h-dvh ${wide ? "max-w-4xl" : "max-w-lg"}`}
       style={{ "--accent": accentStrong(snapshot.group.accentColor) } as React.CSSProperties}
     >
       {offline && (

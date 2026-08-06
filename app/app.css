@@ -332,6 +332,32 @@ textarea {
     color: var(--accent);
   }
 
+  /* Compact inline chip — a whole control (member, date, category) in one tap
+     target, small enough that several fit under a single list row. */
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    min-height: 1.75rem;
+    padding: 0.125rem 0.5rem;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: var(--surface-sunken);
+    font-size: 0.75rem;
+    font-weight: 500;
+    line-height: 1.2;
+    white-space: nowrap;
+    cursor: pointer;
+    transition:
+      border-color 0.16s ease,
+      background 0.16s ease,
+      color 0.16s ease;
+  }
+
+  .pill:hover {
+    border-color: var(--line-strong);
+  }
+
   .section-label {
     font-size: 0.75rem;
     font-weight: 600;
@@ -413,6 +439,16 @@ textarea {
   }
 }
 
+/* Sweeps down the uploaded image while the model reads it. */
+@keyframes scan {
+  from {
+    top: -6rem;
+  }
+  to {
+    top: 100%;
+  }
+}
+
 @keyframes grow-x {
   from {
     transform: scaleX(0);
@@ -432,6 +468,10 @@ textarea {
 
 .animate-slide-up {
   animation: slide-up 0.4s var(--ease-out) both;
+}
+
+.animate-scan {
+  animation: scan 1.6s ease-in-out infinite;
 }
 
 /* Children fade in one after another. Set --i on each child. */

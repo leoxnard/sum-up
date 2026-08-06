@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router";
+import { Link, useNavigate } from "react-router";
 
 import { useT } from "../root";
 import { CURRENCIES } from "../lib/currencies";
 import { CATEGORIES } from "../lib/categories";
-import { IconCamera, IconTrash } from "./icons";
+import { resizeImage } from "../lib/client/image";
+import { IconCamera, IconSparkles, IconTrash } from "./icons";
 import { categoryLabel } from "../lib/i18n";
 import { formatCents, parseAmountToCents, toBaseCents } from "../lib/money";
 import { computeShares, type SplitInput } from "../lib/split";
@@ -491,6 +492,12 @@ export function EntryForm({ snapshot, kind, me, entry }: Props) {
                 <IconCamera className="size-[1.15em]" />
                 {t.addPhoto}
               </button>
+              {!entry && (
+                <Link to={`/g/${group.slug}/import`} className="btn btn-neutral">
+                  <IconSparkles className="size-[1.15em]" />
+                  {t.importFromImage}
+                </Link>
+              )}
               {(photoDataUrl || existingPhotoUrl) && (
                 <button
                   type="button"
@@ -572,15 +579,4 @@ function MemberSelect({
       ))}
     </select>
   );
-}
-
-/** Downscale + JPEG-compress a photo client-side so uploads stay small. */
-async function resizeImage(file: File, maxSize: number, quality: number): Promise<string> {
-  const bitmap = await createImageBitmap(file);
-  const scale = Math.min(1, maxSize / Math.max(bitmap.width, bitmap.height));
-  const canvas = document.createElement("canvas");
-  canvas.width = Math.round(bitmap.width * scale);
-  canvas.height = Math.round(bitmap.height * scale);
-  canvas.getContext("2d")!.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-  return canvas.toDataURL("image/jpeg", quality);
 }

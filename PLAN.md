@@ -30,6 +30,16 @@ Agreed in a grilling session on 2026-07-18; this file is the spec of record.
 - Editable expense date (default today), optional note.
 - **Receipt photos**: stored in Postgres (bytea), client-side resize before upload, served via a
   slug-gated route. Free tier only, no Supabase Storage subscription.
+- **Import from image** (`/g/:slug/import`): a screenshot of a banking app's transaction list
+  or a photo of a receipt goes to Gemini vision (same model fallback chain, structured JSON
+  response); everything found lands in a review screen — original on the left, extracted
+  expenses on the right (stacked on mobile) — with per-row compact controls for payer,
+  participants, date, category, amount and currency. Defaults: the importer paid, split equally
+  between everyone; dates resolved to absolute dates; the amount is the one in the account's own
+  currency (a foreign currency gets the usual `/api/rates` prefill). Nothing is written until
+  "add"; then each row becomes an ordinary `upsert_entry` op through the outbox. A single-expense
+  image is kept as that expense's receipt photo, a multi-expense screenshot is not.
+  Requires `GEMINI_API_KEY`; without it the screen says so and the manual form still works.
 - **CSV export** of all entries; **per-member stats** (who spent/owes what).
 - **Auto-categorization** (categories: food, groceries, transport, accommodation, activities,
   shopping, other):

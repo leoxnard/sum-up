@@ -167,6 +167,52 @@ export function IconSparkles(props: IconProps) {
   );
 }
 
+export function IconImage(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <rect x="3" y="4.5" width="18" height="15" rx="2.4" />
+      <circle cx="8.6" cy="9.8" r="1.5" />
+      <path d="M3.4 16.8 8 12.6a1.6 1.6 0 0 1 2.2 0l3.4 3.2M13 14.6l2-1.7a1.6 1.6 0 0 1 2.1 0l3.5 3" />
+    </Svg>
+  );
+}
+
+export function IconUser(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <circle cx="12" cy="8" r="3.6" />
+      <path d="M4.8 20a7.2 7.2 0 0 1 14.4 0" />
+    </Svg>
+  );
+}
+
+export function IconUsers(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <circle cx="9.5" cy="8" r="3.3" />
+      <path d="M3 19.5a6.5 6.5 0 0 1 13 0" />
+      <path d="M16 5.1a3.3 3.3 0 0 1 0 6.4M17.5 14.2a6.5 6.5 0 0 1 3.5 5.3" />
+    </Svg>
+  );
+}
+
+export function IconCalendar(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <rect x="3.5" y="5.5" width="17" height="15" rx="2.2" />
+      <path d="M3.5 10h17M8.5 3.5V7M15.5 3.5V7" />
+    </Svg>
+  );
+}
+
+export function IconChevronDown(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M6 9.5 12 15.5l6-6" />
+    </Svg>
+  );
+}
+
 export function IconPlus(props: IconProps) {
   return (
     <Svg {...props}>
