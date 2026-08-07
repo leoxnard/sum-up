@@ -28,7 +28,9 @@ import {
   IconAlert,
   IconArrowLeft,
   IconCalendar,
+  IconArrowRight,
   IconChevronDown,
+  IconExchange,
   IconImage,
   IconMic,
   IconSparkles,
@@ -104,6 +106,9 @@ export async function action({ request, params }: Route.ActionArgs) {
 interface Row {
   id: string;
   selected: boolean;
+  /** a payment is a repayment between two members: no split, no category */
+  kind: "expense" | "payment";
+  recipientId: string;
   title: string;
   amountRaw: string;
   currency: string;
@@ -177,6 +182,11 @@ export default function ImportExpenses() {
       data.expenses.map((expense) => ({
         id: crypto.randomUUID(),
         selected: true,
+        kind: expense.kind,
+        recipientId:
+          expense.recipientId && members.some((m) => m.id === expense.recipientId)
+            ? expense.recipientId
+            : "",
         title: expense.title,
         amountRaw: (expense.amountCents / 100).toFixed(2),
         currency: expense.currency,
@@ -355,6 +365,9 @@ export default function ImportExpenses() {
   const duplicates = useMemo(() => {
     const found = new Map<string, DuplicateMatch[]>();
     for (const row of rows ?? []) {
+      // Repaying the same person the same amount twice is a normal thing to
+      // record, so payments are left out of the check entirely.
+      if (row.kind === "payment") continue;
       const cents = parseAmountToCents(row.amountRaw);
       const rate = rateFor(row.currency);
       if (!cents || cents <= 0 || !rate) continue;
@@ -370,6 +383,7 @@ export default function ImportExpenses() {
   }, [rows, rates, base, snapshot.entries]);
 
   const flaggedSelected = selected.filter((row) => duplicates.has(row.id));
+  const hasPayment = (rows ?? []).some((row) => row.kind === "payment");
 
   const memberName = useMemo(
     () => new Map(members.map((m) => [m.id, m.name])),
@@ -385,19 +399,26 @@ export default function ImportExpenses() {
     for (const row of selected) {
       const amountCents = parseAmountToCents(row.amountRaw);
       const rate = rateFor(row.currency);
-      const split = amountCents
-        ? computeShares(
-            "equal",
-            amountCents,
-            members.map((m) => ({
-              memberId: m.id,
-              value: null,
-              included: row.participants.includes(m.id),
-            })),
-          )
-        : null;
-      if (!amountCents || amountCents <= 0 || !rate || !split?.ok || !row.title.trim()) {
-        setError(t.errImportRow(row.title.trim() || "?"));
+      const payment = row.kind === "payment";
+      // A payment moves the whole amount from one member to another, so it has
+      // no split at all; an expense needs one that covers its participants.
+      const split =
+        amountCents && !payment
+          ? computeShares(
+              "equal",
+              amountCents,
+              members.map((m) => ({
+                memberId: m.id,
+                value: null,
+                included: row.participants.includes(m.id),
+              })),
+            )
+          : null;
+      const usable = payment
+        ? Boolean(row.recipientId) && row.recipientId !== row.payerId
+        : Boolean(split?.ok) && Boolean(row.title.trim());
+      if (!amountCents || amountCents <= 0 || !rate || !usable) {
+        setError(t.errImportRow(rowLabel(row, memberName, t)));
         return;
       }
       ops.push({
@@ -407,21 +428,21 @@ export default function ImportExpenses() {
         groupId: group.id,
         entry: {
           id: row.id,
-          kind: "expense",
-          title: row.title.trim(),
+          kind: row.kind,
+          title: payment ? null : row.title.trim(),
           note: row.note.trim() || null,
-          category: row.category,
+          category: payment ? null : row.category,
           // A reviewed guess is trustworthy enough to keep, but only a
           // deliberate pick teaches the group's learned categories.
-          categorySource: row.categoryTouched ? "manual" : "llm",
+          categorySource: payment ? null : row.categoryTouched ? "manual" : "llm",
           payerId: row.payerId,
-          recipientId: null,
+          recipientId: payment ? row.recipientId : null,
           amountCents,
           currency: row.currency,
           exchangeRate: rate,
           splitMode: "equal",
           expenseDate: row.date,
-          shares: split.shares,
+          shares: split?.ok ? split.shares : [],
         },
         // A single-expense image is a receipt for that expense — keep it. For a
         // transaction list the same screenshot on every entry is just noise,
@@ -518,7 +539,9 @@ export default function ImportExpenses() {
             ) : (
               <>
                 <div className="flex items-center justify-between gap-2">
-                  <h2 className="section-label">{t.importFound(rows.length)}</h2>
+                  <h2 className="section-label">
+                    {hasPayment ? t.importFoundEntries(rows.length) : t.importFound(rows.length)}
+                  </h2>
                   <button
                     type="button"
                     onClick={() => {
@@ -666,7 +689,9 @@ export default function ImportExpenses() {
               disabled={selected.length === 0 || saving}
               className="btn btn-primary btn-lg flex-1"
             >
-              {t.importAddSelected(selected.length)}
+              {hasPayment
+                ? t.importAddEntries(selected.length)
+                : t.importAddSelected(selected.length)}
               <span className="ml-1 text-sm font-normal opacity-80 tabular-nums">
                 {selectedTotalLabel(selected, base, rateFor, intl)}
               </span>
@@ -693,6 +718,18 @@ function selectedTotalLabel(
     total += toBaseCents(cents, rate);
   }
   return total > 0 ? formatCents(total, base, intl) : "";
+}
+
+/** How a row is named in an error: its title, or the two sides of a payment. */
+function rowLabel(
+  row: Row,
+  memberName: Map<string, string>,
+  t: { payment: string },
+): string {
+  if (row.kind === "expense") return row.title.trim() || "?";
+  const from = memberName.get(row.payerId) ?? "?";
+  const to = memberName.get(row.recipientId) ?? "?";
+  return `${t.payment}: ${from} → ${to}`;
 }
 
 function clock(seconds: number): string {
@@ -834,6 +871,7 @@ function ExpenseRow({
   const { t, intl } = useT();
   const dateFormat = new Intl.DateTimeFormat(intl, { day: "numeric", month: "short" });
   const amountCents = parseAmountToCents(row.amountRaw);
+  const payment = row.kind === "payment";
   const payerName = members.find((m) => m.id === row.payerId)?.name ?? "—";
   const everyone = row.participants.length === members.length;
   const participantLabel = everyone
@@ -854,35 +892,65 @@ function ExpenseRow({
           type="checkbox"
           checked={row.selected}
           onChange={(e) => onChange({ selected: e.target.checked })}
-          aria-label={row.title}
+          aria-label={payment ? t.payment : row.title}
           className="checkbox shrink-0"
         />
-        <PillControl
-          label=""
-          icon={<CategoryIcon category={row.category} className="size-[1.05rem]" />}
-          compact
-        >
-          <select
-            value={row.category}
-            onChange={(e) =>
-              onChange({ category: e.target.value as CategoryKey, categoryTouched: true })
-            }
-            aria-label={t.category}
-            className="absolute inset-0 cursor-pointer opacity-0"
-          >
-            {CATEGORIES.map((c) => (
-              <option key={c} value={c}>
-                {categoryLabel(t, c)}
+        {payment ? (
+          <>
+            {/* A repayment has no title and no category — what it is, is who it
+                went to, so the recipient takes the title's place. */}
+            <span className="pill px-1.5">
+              <IconExchange className="size-[1.05rem] text-[var(--text-muted)]" />
+            </span>
+            <IconArrowRight className="size-3.5 shrink-0 text-[var(--text-muted)]" />
+            <select
+              value={row.recipientId}
+              onChange={(e) => onChange({ recipientId: e.target.value })}
+              aria-label={t.recipient}
+              className="min-w-0 flex-1 cursor-pointer bg-transparent font-medium outline-none"
+            >
+              <option value="" disabled>
+                —
               </option>
-            ))}
-          </select>
-        </PillControl>
-        <input
-          value={row.title}
-          onChange={(e) => onChange({ title: e.target.value })}
-          aria-label={t.title}
-          className="min-w-0 flex-1 bg-transparent font-medium outline-none focus:underline focus:decoration-[var(--line-strong)] focus:underline-offset-4"
-        />
+              {members
+                .filter((m) => m.id !== row.payerId)
+                .map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.name}
+                  </option>
+                ))}
+            </select>
+          </>
+        ) : (
+          <>
+            <PillControl
+              label=""
+              icon={<CategoryIcon category={row.category} className="size-[1.05rem]" />}
+              compact
+            >
+              <select
+                value={row.category}
+                onChange={(e) =>
+                  onChange({ category: e.target.value as CategoryKey, categoryTouched: true })
+                }
+                aria-label={t.category}
+                className="absolute inset-0 cursor-pointer opacity-0"
+              >
+                {CATEGORIES.map((c) => (
+                  <option key={c} value={c}>
+                    {categoryLabel(t, c)}
+                  </option>
+                ))}
+              </select>
+            </PillControl>
+            <input
+              value={row.title}
+              onChange={(e) => onChange({ title: e.target.value })}
+              aria-label={t.title}
+              className="min-w-0 flex-1 bg-transparent font-medium outline-none focus:underline focus:decoration-[var(--line-strong)] focus:underline-offset-4"
+            />
+          </>
+        )}
         <input
           value={row.amountRaw}
           onChange={(e) => onChange({ amountRaw: e.target.value })}
@@ -908,7 +976,13 @@ function ExpenseRow({
         <PillControl label={payerName} icon={<IconUser className="size-3.5" />}>
           <select
             value={row.payerId}
-            onChange={(e) => onChange({ payerId: e.target.value })}
+            onChange={(e) =>
+              onChange({
+                payerId: e.target.value,
+                // Nobody pays themselves back.
+                ...(e.target.value === row.recipientId ? { recipientId: "" } : null),
+              })
+            }
             aria-label={t.payer}
             className="absolute inset-0 cursor-pointer opacity-0"
           >
@@ -926,8 +1000,17 @@ function ExpenseRow({
           aria-expanded={row.expanded}
           className="pill"
         >
-          <IconUsers className="size-3.5 text-[var(--text-muted)]" />
-          <span className="max-w-[7rem] truncate">{participantLabel}</span>
+          {payment ? (
+            <>
+              <IconExchange className="size-3.5 text-[var(--text-muted)]" />
+              <span>{t.payment}</span>
+            </>
+          ) : (
+            <>
+              <IconUsers className="size-3.5 text-[var(--text-muted)]" />
+              <span className="max-w-[7rem] truncate">{participantLabel}</span>
+            </>
+          )}
           <IconChevronDown className="size-3 text-[var(--text-muted)]" />
         </button>
 
@@ -970,30 +1053,63 @@ function ExpenseRow({
 
       {row.expanded && (
         <div className="mt-2 pl-8">
+          {/* Whether this is spending or a repayment is the model's guess like
+              everything else here, so it can be corrected in place. */}
           <div className="flex flex-wrap gap-1.5">
-            {members.map((member) => {
-              const on = row.participants.includes(member.id);
-              return (
-                <button
-                  key={member.id}
-                  type="button"
-                  aria-pressed={on}
-                  onClick={() =>
-                    onChange({
-                      participants: on
-                        ? row.participants.filter((id) => id !== member.id)
-                        : members
-                            .filter((m) => m.id === member.id || row.participants.includes(m.id))
-                            .map((m) => m.id),
-                    })
-                  }
-                  className="pill aria-pressed:border-[var(--accent)] aria-pressed:bg-[var(--accent)] aria-pressed:text-white"
-                >
-                  {member.name}
-                </button>
-              );
-            })}
+            <button
+              type="button"
+              aria-pressed={!payment}
+              onClick={() => onChange({ kind: "expense" })}
+              className="pill aria-pressed:border-[var(--accent)] aria-pressed:bg-[var(--accent)] aria-pressed:text-white"
+            >
+              {t.addExpense}
+            </button>
+            <button
+              type="button"
+              aria-pressed={payment}
+              onClick={() =>
+                onChange({
+                  kind: "payment",
+                  // Falling back to the one person it could plausibly be beats
+                  // an empty picker, but it is still visible and changeable.
+                  recipientId:
+                    row.recipientId ||
+                    (row.participants.length === 1 && row.participants[0] !== row.payerId
+                      ? row.participants[0]
+                      : ""),
+                })
+              }
+              className="pill aria-pressed:border-[var(--accent)] aria-pressed:bg-[var(--accent)] aria-pressed:text-white"
+            >
+              {t.payment}
+            </button>
           </div>
+          {!payment && (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {members.map((member) => {
+                const on = row.participants.includes(member.id);
+                return (
+                  <button
+                    key={member.id}
+                    type="button"
+                    aria-pressed={on}
+                    onClick={() =>
+                      onChange({
+                        participants: on
+                          ? row.participants.filter((id) => id !== member.id)
+                          : members
+                              .filter((m) => m.id === member.id || row.participants.includes(m.id))
+                              .map((m) => m.id),
+                      })
+                    }
+                    className="pill aria-pressed:border-[var(--accent)] aria-pressed:bg-[var(--accent)] aria-pressed:text-white"
+                  >
+                    {member.name}
+                  </button>
+                );
+              })}
+            </div>
+          )}
           <input
             value={row.note}
             onChange={(e) => onChange({ note: e.target.value })}

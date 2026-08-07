@@ -3,8 +3,14 @@ import { CURRENCIES, isCurrency } from "./currencies";
 import { parseAmountToCents } from "./money";
 import type { CategoryKey } from "./types";
 
-/** One expense a model believes it found, already sanitized and ready to review. */
+/** One entry a model believes it found, already sanitized and ready to review. */
 export interface ExtractedExpense {
+  /**
+   * "payment" is money handed from one member to another ("zwei Euro von Leo an
+   * Fabi") — a repayment, not something the group consumed. It settles a debt
+   * instead of creating one, and it must stay out of the spending stats.
+   */
+  kind: "expense" | "payment";
   title: string;
   amountCents: number;
   currency: string;
@@ -16,6 +22,8 @@ export interface ExtractedExpense {
   payerId: string | null;
   /** member ids the source named as participants, or null for "everyone" */
   participantIds: string[] | null;
+  /** who the money went to; only meaningful for a payment */
+  recipientId: string | null;
 }
 
 export interface Extraction {
@@ -44,7 +52,9 @@ export function extractionSchema(withPeople: boolean) {
   };
   if (withPeople) {
     item.note = { type: "string" };
+    item.kind = { type: "string" };
     item.payer = { type: "string" };
+    item.recipient = { type: "string" };
     item.participants = { type: "array", items: { type: "string" } };
   }
   const properties: Record<string, unknown> = {
@@ -117,15 +127,28 @@ export function parseExtraction(text: string, options: ParseOptions): Extraction
     const title = String(row.title ?? "").trim().slice(0, 120);
     const note = String(row.note ?? "").trim().slice(0, 500);
 
+    const kind = String(row.kind ?? "").trim().toLowerCase() === "payment" ? "payment" : "expense";
+    const payerId = matchMember(row.payer, members);
+    const recipientId = matchMember(row.recipient, members);
+
     expenses.push({
-      title: title || "?",
+      kind,
+      title: title || (kind === "payment" ? "" : "?"),
       amountCents,
       currency,
       date,
-      category,
+      category: kind === "payment" ? null : category,
       note: note || null,
-      payerId: matchMember(row.payer, members),
-      participantIds: matchParticipants(row.participants, members),
+      payerId,
+      // A repayment is between two people; a participant list would only be the
+      // recipient again, and everyone else would be plain wrong.
+      participantIds:
+        kind === "payment"
+          ? recipientId
+            ? [recipientId]
+            : null
+          : matchParticipants(row.participants, members),
+      recipientId: recipientId === payerId ? null : recipientId,
     });
   }
 
@@ -147,24 +170,41 @@ function normalizeName(raw: string): string {
 
 /**
  * Resolve a spoken name to a member id. Exact match first, then a unique first
- * name or prefix — an ambiguous name resolves to nothing rather than to the
- * wrong person, because the default (and the review screen) are both safer than
- * a confident guess about who owes money.
+ * name, then a unique short form in either direction ("Fabi" for a member
+ * called "Fabian", "Fabian" for a member called "Fabi") — spoken names are
+ * nicknames far more often than written ones.
+ *
+ * Every step insists on being unique: an ambiguous name resolves to nothing
+ * rather than to the wrong person, because the default (and the review screen)
+ * are both safer than a confident guess about who owes money.
  */
 export function matchMember(raw: unknown, members: ExtractMember[]): string | null {
   const needle = normalizeName(String(raw ?? ""));
   if (!needle || members.length === 0) return null;
 
-  const normalized = members.map((m) => ({ id: m.id, name: normalizeName(m.name) }));
+  const normalized = members.map((m) => ({
+    id: m.id,
+    name: normalizeName(m.name),
+    first: normalizeName(m.name).split(" ")[0],
+  }));
+
   const exact = normalized.filter((m) => m.name === needle);
   if (exact.length === 1) return exact[0].id;
   if (exact.length > 1) return null; // two members share a name — let the user pick
 
   if (needle.length < 2) return null;
-  const partial = normalized.filter(
-    (m) => m.name.split(" ")[0] === needle || m.name.startsWith(`${needle} `),
+  const byFirstName = normalized.filter((m) => m.first === needle || m.name.startsWith(`${needle} `));
+  if (byFirstName.length === 1) return byFirstName[0].id;
+  if (byFirstName.length > 1) return null;
+
+  // Short forms need three letters before they may stand for a longer name;
+  // below that ("Al" for Alex and Alina alike) the risk outweighs the comfort.
+  if (needle.length < 3) return null;
+  const nickname = normalized.filter(
+    (m) =>
+      m.first.startsWith(needle) || (m.first.length >= 3 && needle.startsWith(m.first)),
   );
-  return partial.length === 1 ? partial[0].id : null;
+  return nickname.length === 1 ? nickname[0].id : null;
 }
 
 const EVERYONE = new Set([

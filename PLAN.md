@@ -37,8 +37,12 @@ Agreed in a grilling session on 2026-07-18; this file is the spec of record.
   model accepts and the upload stays small. Gemini transcribes and extracts in one call: one
   message can describe several purchases and they come back as separate rows, and spoken people
   ("Ben hat bezahlt", "nur für Anna und mich") are matched against the real member list to prefill
-  payer and participants — an ambiguous or half-understood name falls back to the defaults instead
-  of guessing who owes money. The transcript is shown next to the rows so a misread amount is
+  payer and participants — short forms count ("Fabi" for Fabian) as long as they stay unique, and
+  an ambiguous or half-understood name falls back to the defaults instead of guessing who owes
+  money. A repayment („zwei Euro von Leo an Fabi") is recognized as a payment entry rather than an
+  expense: payer, recipient, no split and no category, so it settles a debt instead of creating one
+  and stays out of the spending stats. Every row can be switched between expense and payment while
+  reviewing. The transcript is shown next to the rows so a misread amount is
   explainable, and the recording itself is never stored.
 - **Import from image** (`/g/:slug/import`): a screenshot of a banking app's transaction list
   or a photo of a receipt goes to Gemini vision (same model fallback chain, structured JSON

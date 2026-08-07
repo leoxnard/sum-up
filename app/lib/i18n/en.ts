@@ -101,6 +101,8 @@ export const en = {
   importAnalyzingHint: "This takes a few seconds.",
   importOriginal: "Original",
   importFound: (n: number) => (n === 1 ? "1 expense found" : `${n} expenses found`),
+  // Used as soon as a repayment is among them, where "expense" would be wrong.
+  importFoundEntries: (n: number) => (n === 1 ? "1 entry found" : `${n} entries found`),
   importNothingFound: "No expenses found on this image.",
   importUnavailable: "Image recognition isn't configured on this server.",
   importFailed: "The image couldn't be read. Try again or add the expense manually.",
@@ -111,6 +113,7 @@ export const en = {
   importDeselectAll: "Deselect all",
   importSelected: (n: number, total: number) => `${n} of ${total} selected`,
   importAddSelected: (n: number) => (n === 1 ? "Add 1 expense" : `Add ${n} expenses`),
+  importAddEntries: (n: number) => (n === 1 ? "Add 1 entry" : `Add ${n} entries`),
   importPayerForAll: "Everything paid by",
   importFor: "For",
   importEveryone: "Everyone",

@@ -102,6 +102,8 @@ export const de: Dictionary = {
   importAnalyzingHint: "Das dauert ein paar Sekunden.",
   importOriginal: "Original",
   importFound: (n: number) => (n === 1 ? "1 Ausgabe gefunden" : `${n} Ausgaben gefunden`),
+  // Sobald eine Rückzahlung dabei ist, wäre „Ausgabe" falsch.
+  importFoundEntries: (n: number) => (n === 1 ? "1 Eintrag gefunden" : `${n} Einträge gefunden`),
   importNothingFound: "Auf diesem Bild wurden keine Ausgaben gefunden.",
   importUnavailable: "Die Bilderkennung ist auf diesem Server nicht eingerichtet.",
   importFailed:
@@ -114,6 +116,8 @@ export const de: Dictionary = {
   importSelected: (n: number, total: number) => `${n} von ${total} ausgewählt`,
   importAddSelected: (n: number) =>
     n === 1 ? "1 Ausgabe hinzufügen" : `${n} Ausgaben hinzufügen`,
+  importAddEntries: (n: number) =>
+    n === 1 ? "1 Eintrag hinzufügen" : `${n} Einträge hinzufügen`,
   importPayerForAll: "Alles bezahlt von",
   importFor: "Für",
   importEveryone: "Alle",

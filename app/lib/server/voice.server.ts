@@ -46,6 +46,11 @@ function buildPrompt(
     "First transcribe what is said, then turn it into expenses.",
     "",
     "Rules:",
+    "- kind: \"payment\" when money simply moved from one person to another — a repayment or",
+    `  a transfer, e.g. „zwei Euro von Leo an Fabi", „ich hab Anna die 10 Euro zurückgegeben",`,
+    `  "Ben paid me back 20". Everything that was bought is kind "expense". A payment settles a`,
+    "  debt and is never split; give it a payer, a recipient and no participants, no title and",
+    "  no category.",
     "- One entry per distinct purchase. If the speaker mentions several things bought in",
     "  separate places or for separate purposes, split them into separate entries — even when",
     "  the amounts were said in one breath.",
@@ -73,9 +78,14 @@ function buildPrompt(
           speaker
             ? `- The person recording is ${speaker}, so "ich" / "I" / "me" means ${speaker}.`
             : `- Omit payer when the speaker only says "ich" / "I", since their name is unknown.`,
-          "- participants: the members the expense is split between, spelled as in that list.",
+          "- recipient: for a payment, the member who received the money (the „an …“ / „to …“",
+          "  side). Omit it for an expense.",
+          "- participants: the members an expense is split between, spelled as in that list.",
           `  Use "everyone" when it is for the whole group, and omit the field when the speaker`,
-          "  does not say who it is for.",
+          "  does not say who it is for. When they do name people, list exactly those and nobody",
+          `  else — „das war nur für Fabi" means participants: ["Fabi"], not the whole group.`,
+          "- Spoken names are often short forms; return them as you heard them and do not map",
+          "  them onto a list entry yourself.",
         ].join("\n")
       : "",
     "",

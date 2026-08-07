@@ -111,6 +111,45 @@ describe("parseExtraction", () => {
     expect(parsed?.expenses[2].participantIds).toBeNull();
   });
 
+  it("books \"zwei Euro von Leo an Fabi\" as a payment to Fabi alone", () => {
+    const group: ExtractMember[] = [
+      { id: "leo", name: "Leo" },
+      { id: "fabian", name: "Fabian" },
+      { id: "mia", name: "Mia" },
+    ];
+    const result = parseExtraction(
+      json({
+        expenses: [
+          { kind: "payment", title: "", amount: "2", currency: "EUR", date: "2026-08-06", payer: "Leo", recipient: "Fabi" },
+        ],
+        transcript: "Zwei Euro von Leo an Fabi, gestern.",
+      }),
+      { ...options, members: group },
+    );
+    const [row] = result!.expenses;
+    expect(row.kind).toBe("payment");
+    expect(row.payerId).toBe("leo");
+    expect(row.recipientId).toBe("fabian");
+    // Never the whole group: a repayment concerns exactly two people.
+    expect(row.participantIds).toEqual(["fabian"]);
+    expect(row.category).toBeNull();
+    expect(row.date).toBe("2026-08-06");
+  });
+
+  it("drops a recipient that is the payer and defaults to an expense", () => {
+    const result = parseExtraction(
+      json({
+        expenses: [
+          { kind: "payment", amount: "5", currency: "EUR", payer: "Anna", recipient: "Anna" },
+          { kind: "spende", title: "Kiosk", amount: "5", currency: "EUR" },
+        ],
+      }),
+      options,
+    );
+    expect(result?.expenses[0].recipientId).toBeNull();
+    expect(result?.expenses[1].kind).toBe("expense");
+  });
+
   it("keeps a spoken note but never invents one", () => {
     const result = parseExtraction(
       json({
@@ -133,6 +172,17 @@ describe("matchMember", () => {
     expect(matchMember("Ben", members)).toBe("m2");
   });
 
+  it("accepts a unique short form in either direction", () => {
+    const group: ExtractMember[] = [
+      { id: "f", name: "Fabian" },
+      { id: "s", name: "Sandra Klein" },
+    ];
+    expect(matchMember("Fabi", group)).toBe("f");
+    expect(matchMember("Sandra", group)).toBe("s");
+    // The member is the short form and the speaker used the long one.
+    expect(matchMember("Alexander", [{ id: "a", name: "Alex" }])).toBe("a");
+  });
+
   it("refuses to guess", () => {
     expect(matchMember("Sandra", members)).toBeNull();
     expect(matchMember("", members)).toBeNull();
@@ -143,5 +193,13 @@ describe("matchMember", () => {
       { id: "b", name: "Chris" },
     ];
     expect(matchMember("Chris", twins)).toBeNull();
+    // Two names starting the same way: a short form belongs to neither.
+    const both: ExtractMember[] = [
+      { id: "x", name: "Alex" },
+      { id: "y", name: "Alina" },
+    ];
+    expect(matchMember("Al", both)).toBeNull();
+    // "Ale" narrows to exactly one of them, so it is allowed to.
+    expect(matchMember("Ale", both)).toBe("x");
   });
 });
