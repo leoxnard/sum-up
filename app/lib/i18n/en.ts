@@ -116,8 +116,17 @@ export const en = {
   importEveryone: "Everyone",
   importPhotoAttached: "The image is attached to the expense as a receipt.",
   importCheckHint: "Check everything, correct what's wrong, then add.",
+  importDupFound: (n: number) =>
+    n === 1
+      ? "1 of these might already be in the group."
+      : `${n} of these might already be in the group.`,
+  importDupDeselect: "Deselect them",
   errImportNoneSelected: "Select at least one expense.",
   errImportRow: (title: string) => `Check "${title}" — amount, split or exchange rate is missing.`,
+  // Duplicate warning
+  dupLikely: "This looks like an expense that's already in the group",
+  dupPossible: "A similar expense is already in the group",
+  dupHint: "Adding it a second time would skew everyone's balance.",
   deleteEntryConfirm: "Delete this entry for everyone?",
   cancel: "Back",
   // Validation

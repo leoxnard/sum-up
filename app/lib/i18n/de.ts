@@ -119,9 +119,18 @@ export const de: Dictionary = {
   importEveryone: "Alle",
   importPhotoAttached: "Das Bild wird als Beleg an die Ausgabe gehängt.",
   importCheckHint: "Prüf alles, korrigier was falsch ist, dann hinzufügen.",
+  importDupFound: (n: number) =>
+    n === 1
+      ? "1 Eintrag steht vielleicht schon in der Gruppe."
+      : `${n} Einträge stehen vielleicht schon in der Gruppe.`,
+  importDupDeselect: "Abwählen",
   errImportNoneSelected: "Wähle mindestens eine Ausgabe aus.",
   errImportRow: (title: string) =>
     `Prüf „${title}“ — Betrag, Aufteilung oder Wechselkurs fehlt.`,
+  // Duplikat-Warnung
+  dupLikely: "Das sieht nach einer Ausgabe aus, die schon in der Gruppe steht",
+  dupPossible: "Eine ähnliche Ausgabe steht schon in der Gruppe",
+  dupHint: "Ein zweites Mal hinzugefügt verschiebt es die Salden aller.",
   deleteEntryConfirm: "Diesen Eintrag für alle löschen?",
   cancel: "Zurück",
   // Validation

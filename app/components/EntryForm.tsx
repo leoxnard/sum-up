@@ -5,6 +5,8 @@ import { useT } from "../root";
 import { CURRENCIES } from "../lib/currencies";
 import { CATEGORIES } from "../lib/categories";
 import { resizeImage } from "../lib/client/image";
+import { findDuplicates } from "../lib/duplicates";
+import { DuplicateNotice } from "./DuplicateWarning";
 import { IconCamera, IconSparkles, IconTrash } from "./icons";
 import { categoryLabel } from "../lib/i18n";
 import { formatCents, parseAmountToCents, toBaseCents } from "../lib/money";
@@ -173,6 +175,27 @@ export function EntryForm({ snapshot, kind, me, entry }: Props) {
     return null;
   }, [mode, splitInputs, amountCents, currency, intl]);
 
+  // Expenses that look like the one being typed. Recomputed as the fields
+  // change, so the hint shows up the moment the amount makes it identifiable —
+  // it never blocks saving, it just makes the double booking visible first.
+  const duplicates = useMemo(() => {
+    if (kind !== "expense" || !amountCents || amountCents <= 0 || !rate || rate <= 0) return [];
+    return findDuplicates(
+      {
+        id: entry?.id ?? null,
+        title,
+        amountBaseCents: toBaseCents(amountCents, rate),
+        date,
+      },
+      snapshot.entries,
+    );
+  }, [kind, amountCents, rate, title, date, entry?.id, snapshot.entries]);
+
+  const memberName = useMemo(
+    () => new Map(members.map((m) => [m.id, m.name])),
+    [members],
+  );
+
   async function onPickPhoto(file: File) {
     const dataUrl = await resizeImage(file, 1600, 0.8);
     setPhotoDataUrl(dataUrl);
@@ -337,6 +360,8 @@ export function EntryForm({ snapshot, kind, me, entry }: Props) {
             )}
           </Field>
         )}
+
+        <DuplicateNotice matches={duplicates} memberName={memberName} />
 
         <Field label={kind === "payment" ? t.payer : t.payer}>
           <MemberSelect members={members} value={payerId} onChange={setPayerId} />

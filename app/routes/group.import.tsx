@@ -10,11 +10,14 @@ import { CATEGORIES } from "../lib/categories";
 import { CURRENCIES } from "../lib/currencies";
 import { formatCents, parseAmountToCents, toBaseCents } from "../lib/money";
 import { computeShares } from "../lib/split";
+import { findDuplicates, type DuplicateMatch } from "../lib/duplicates";
 import { categoryLabel } from "../lib/i18n";
 import { resizeImage } from "../lib/client/image";
 import { submitOp } from "../lib/client/outbox";
+import { DuplicateLine } from "../components/DuplicateWarning";
 import {
   CategoryIcon,
+  IconAlert,
   IconArrowLeft,
   IconCalendar,
   IconChevronDown,
@@ -182,6 +185,32 @@ export default function ImportFromImage() {
     return Number.isFinite(value) && value > 0 ? value : null;
   }
 
+  // A scan of a bank statement happily re-reads days that were already booked,
+  // so every row is checked against the group before it can be added.
+  const duplicates = useMemo(() => {
+    const found = new Map<string, DuplicateMatch[]>();
+    for (const row of rows ?? []) {
+      const cents = parseAmountToCents(row.amountRaw);
+      const rate = rateFor(row.currency);
+      if (!cents || cents <= 0 || !rate) continue;
+      const matches = findDuplicates(
+        { title: row.title, amountBaseCents: toBaseCents(cents, rate), date: row.date },
+        snapshot.entries,
+      );
+      if (matches.length > 0) found.set(row.id, matches);
+    }
+    return found;
+    // rateFor closes over `rates`, which is in the dependency list.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows, rates, base, snapshot.entries]);
+
+  const flaggedSelected = selected.filter((row) => duplicates.has(row.id));
+
+  const memberName = useMemo(
+    () => new Map(members.map((m) => [m.id, m.name])),
+    [members],
+  );
+
   async function onAdd() {
     if (selected.length === 0) {
       setError(t.errImportNoneSelected);
@@ -312,6 +341,30 @@ export default function ImportFromImage() {
                 </div>
                 <p className="mt-1 text-xs text-[var(--text-muted)]">{t.importCheckHint}</p>
 
+                {flaggedSelected.length > 0 && (
+                  <div className="animate-pop mt-3 flex items-center gap-2 rounded-[var(--radius-control)] border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-700 dark:text-amber-400">
+                    <IconAlert className="size-[1.15em] shrink-0" />
+                    <span className="min-w-0 flex-1">
+                      {t.importDupFound(flaggedSelected.length)}
+                    </span>
+                    {/* Deselecting is a suggestion the user triggers — nothing
+                        is dropped behind their back. */}
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setRows(
+                          rows.map((r) =>
+                            duplicates.has(r.id) ? { ...r, selected: false } : r,
+                          ),
+                        )
+                      }
+                      className="shrink-0 font-semibold underline underline-offset-2"
+                    >
+                      {t.importDupDeselect}
+                    </button>
+                  </div>
+                )}
+
                 {members.length > 1 && (
                   <label className="mt-3 flex items-center gap-2 rounded-[var(--radius-control)] bg-[var(--surface-sunken)] px-3 py-2 text-sm">
                     <IconUser className="size-4 shrink-0 text-[var(--text-muted)]" />
@@ -342,8 +395,10 @@ export default function ImportFromImage() {
                       row={row}
                       index={index}
                       members={members}
+                      memberName={memberName}
                       base={base}
                       rate={rateFor(row.currency)}
+                      matches={duplicates.get(row.id) ?? []}
                       onChange={(patch) => patchRow(row.id, patch)}
                     />
                   ))}
@@ -503,15 +558,19 @@ function ExpenseRow({
   row,
   index,
   members,
+  memberName,
   base,
   rate,
+  matches,
   onChange,
 }: {
   row: Row;
   index: number;
   members: { id: string; name: string }[];
+  memberName: Map<string, string>;
   base: string;
   rate: number | null;
+  matches: DuplicateMatch[];
   onChange: (patch: Partial<Row>) => void;
 }) {
   const { t, intl } = useT();
@@ -528,7 +587,9 @@ function ExpenseRow({
   return (
     <div
       style={{ "--i": Math.min(index, 12) } as React.CSSProperties}
-      className={`card px-2.5 py-2 transition-opacity ${row.selected ? "" : "opacity-45"}`}
+      className={`card px-2.5 py-2 transition-opacity ${row.selected ? "" : "opacity-45"} ${
+        matches.length > 0 ? "border-amber-500/40" : ""
+      }`}
     >
       <div className="flex items-center gap-2">
         <input
@@ -640,6 +701,8 @@ function ExpenseRow({
           </span>
         )}
       </div>
+
+      <DuplicateLine matches={matches} memberName={memberName} className="mt-1.5 pl-8" />
 
       {row.expanded && (
         <div className="mt-2 flex flex-wrap gap-1.5 pl-8">

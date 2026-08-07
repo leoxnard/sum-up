@@ -256,6 +256,16 @@ export function IconArrowRight(props: IconProps) {
   );
 }
 
+export function IconAlert(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M12 3.8 2.9 19.4a1.3 1.3 0 0 0 1.1 1.9h16a1.3 1.3 0 0 0 1.1-1.9L12 3.8Z" />
+      <path d="M12 9.8v4.4" />
+      <path d="M12 17.6h.01" />
+    </Svg>
+  );
+}
+
 const CATEGORY_ICON: Record<CategoryKey, (props: IconProps) => React.ReactElement> = {
   food: IconUtensils,
   groceries: IconCart,

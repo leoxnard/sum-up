@@ -40,6 +40,13 @@ Agreed in a grilling session on 2026-07-18; this file is the spec of record.
   "add"; then each row becomes an ordinary `upsert_entry` op through the outbox. A single-expense
   image is kept as that expense's receipt photo, a multi-expense screenshot is not.
   Requires `GEMINI_API_KEY`; without it the screen says so and the manual form still works.
+- **Duplicate warnings** (`app/lib/duplicates.ts`): before an expense is added it is scored against
+  the ones already in the group — the base-currency amount is the anchor (≤ 0.5 % apart, to absorb
+  two different exchange rates), sharpened by date distance (≤ 14 days) and title similarity (Dice
+  over character bigrams, accent- and punctuation-insensitive). Above a threshold the entry form
+  shows a panel naming the matching entries, and each row of the image import gets an inline hint
+  plus a "deselect them" shortcut in a summary banner. Purely advisory: nothing is blocked and
+  nothing is deselected without a tap.
 - **CSV export** of all entries; **per-member stats** (who spent/owes what).
 - **Auto-categorization** (categories: food, groceries, transport, accommodation, activities,
   shopping, other):
