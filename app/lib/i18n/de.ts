@@ -91,11 +91,11 @@ export const de: Dictionary = {
   removePhoto: "Foto entfernen",
   save: "Speichern",
   delete: "Löschen",
-  // Import aus Bild
-  importFromImage: "Aus Bild importieren",
+  // Import aus Bild oder Sprachnachricht
+  importTitle: "Ausgaben erfassen",
   importShort: "Scannen",
   importIntro:
-    "Lade einen Screenshot aus deiner Banking-App oder ein Foto von einem Kassenbon hoch — die Ausgaben darauf werden automatisch erkannt.",
+    "Sag einfach, was du ausgegeben hast — oder lade einen Screenshot aus deiner Banking-App oder ein Foto von einem Kassenbon hoch. Die Ausgaben werden automatisch erkannt.",
   importPickImage: "Bild auswählen",
   importTakePhoto: "Foto aufnehmen",
   importAnalyzing: "Bild wird gelesen…",
@@ -106,7 +106,7 @@ export const de: Dictionary = {
   importUnavailable: "Die Bilderkennung ist auf diesem Server nicht eingerichtet.",
   importFailed:
     "Das Bild konnte nicht gelesen werden. Versuch es nochmal oder trag die Ausgabe von Hand ein.",
-  importOffline: "Für die Bilderkennung brauchst du eine Internetverbindung.",
+  importOffline: "Für die automatische Erkennung brauchst du eine Internetverbindung.",
   importTooLarge: "Dieses Bild ist zu groß.",
   importRetry: "Anderes Bild",
   importSelectAll: "Alle auswählen",
@@ -124,6 +124,27 @@ export const de: Dictionary = {
       ? "1 Eintrag steht vielleicht schon in der Gruppe."
       : `${n} Einträge stehen vielleicht schon in der Gruppe.`,
   importDupDeselect: "Abwählen",
+  // Sprachnachricht
+  voiceRecord: "Sprachnachricht aufnehmen",
+  voiceIntroHint:
+    "Mehrere Ausgaben in einer Nachricht sind kein Problem — sag dazu, wer bezahlt hat und für wen es war, dann wird es passend aufgeteilt.",
+  voiceStop: "Aufnahme beenden",
+  voiceDiscard: "Verwerfen",
+  voiceRecordingHint: "Zum Beenden tippen, wenn du fertig bist.",
+  voiceTimeLeft: (seconds: number) => `noch ${seconds} s`,
+  voiceAnalyzing: "Sprachnachricht wird gehört…",
+  voiceRecording: "Deine Aufnahme",
+  voiceTranscript: "Das wurde verstanden",
+  voiceNoTranscript: "Für diese Aufnahme gibt es keine Abschrift.",
+  voiceNothingFound: "In dieser Nachricht wurden keine Ausgaben genannt.",
+  voiceNothingHint: "Sag, wofür es war und wie viel es gekostet hat, dann nochmal versuchen.",
+  voiceRetry: "Neu aufnehmen",
+  voiceDenied:
+    "Der Zugriff aufs Mikrofon ist blockiert. Erlaub ihn in den Browser-Einstellungen und versuch es nochmal.",
+  voiceUnsupported: "Dieser Browser kann keine Aufnahmen machen.",
+  voiceUnavailable: "Die Spracherkennung ist auf diesem Server nicht eingerichtet.",
+  voiceTooLong: "Diese Aufnahme ist zu lang.",
+  voiceFailed: "Die Aufnahme konnte nicht verwendet werden. Bitte versuch es nochmal.",
   errImportNoneSelected: "Wähle mindestens eine Ausgabe aus.",
   errImportRow: (title: string) =>
     `Prüf „${title}“ — Betrag, Aufteilung oder Wechselkurs fehlt.`,

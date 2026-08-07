@@ -30,6 +30,16 @@ Agreed in a grilling session on 2026-07-18; this file is the spec of record.
 - Editable expense date (default today), optional note.
 - **Receipt photos**: stored in Postgres (bytea), client-side resize before upload, served via a
   slug-gated route. Free tier only, no Supabase Storage subscription.
+- **Capture expenses** (`/g/:slug/import`): one screen with two ways in — record a voice message
+  or pick an image — both landing in the same review list before anything is written.
+- **Voice message**: recorded in the browser (`MediaRecorder`, capped at 90 s), decoded and
+  re-encoded client-side as 16 kHz mono WAV so every browser's container becomes one format the
+  model accepts and the upload stays small. Gemini transcribes and extracts in one call: one
+  message can describe several purchases and they come back as separate rows, and spoken people
+  ("Ben hat bezahlt", "nur für Anna und mich") are matched against the real member list to prefill
+  payer and participants — an ambiguous or half-understood name falls back to the defaults instead
+  of guessing who owes money. The transcript is shown next to the rows so a misread amount is
+  explainable, and the recording itself is never stored.
 - **Import from image** (`/g/:slug/import`): a screenshot of a banking app's transaction list
   or a photo of a receipt goes to Gemini vision (same model fallback chain, structured JSON
   response); everything found lands in a review screen — original on the left, extracted

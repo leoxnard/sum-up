@@ -90,11 +90,11 @@ export const en = {
   removePhoto: "Remove photo",
   save: "Save",
   delete: "Delete",
-  // Import from image
-  importFromImage: "Import from image",
+  // Import from image or voice message
+  importTitle: "Capture expenses",
   importShort: "Scan",
   importIntro:
-    "Upload a screenshot from your banking app or a photo of a receipt — the expenses on it are recognized automatically.",
+    "Say what you spent, or upload a screenshot from your banking app or a photo of a receipt — the expenses are recognized automatically.",
   importPickImage: "Choose image",
   importTakePhoto: "Take photo",
   importAnalyzing: "Reading the image…",
@@ -104,7 +104,7 @@ export const en = {
   importNothingFound: "No expenses found on this image.",
   importUnavailable: "Image recognition isn't configured on this server.",
   importFailed: "The image couldn't be read. Try again or add the expense manually.",
-  importOffline: "Image recognition needs an internet connection.",
+  importOffline: "Recognizing expenses needs an internet connection.",
   importTooLarge: "This image is too large.",
   importRetry: "Try another image",
   importSelectAll: "Select all",
@@ -121,6 +121,26 @@ export const en = {
       ? "1 of these might already be in the group."
       : `${n} of these might already be in the group.`,
   importDupDeselect: "Deselect them",
+  // Voice message
+  voiceRecord: "Record voice message",
+  voiceIntroHint:
+    "Several expenses in one message are fine — say who paid and who they're for and it's split accordingly.",
+  voiceStop: "Stop recording",
+  voiceDiscard: "Discard",
+  voiceRecordingHint: "Tap to stop when you're done.",
+  voiceTimeLeft: (seconds: number) => `${seconds} s left`,
+  voiceAnalyzing: "Listening to your message…",
+  voiceRecording: "Your recording",
+  voiceTranscript: "What was heard",
+  voiceNoTranscript: "No transcript for this recording.",
+  voiceNothingFound: "No expenses were mentioned in this message.",
+  voiceNothingHint: "Say what it was for and how much it cost, then try again.",
+  voiceRetry: "Record again",
+  voiceDenied: "Microphone access is off. Allow it in your browser settings and try again.",
+  voiceUnsupported: "This browser can't record audio.",
+  voiceUnavailable: "Voice recognition isn't configured on this server.",
+  voiceTooLong: "This recording is too long.",
+  voiceFailed: "The recording couldn't be used. Please try again.",
   errImportNoneSelected: "Select at least one expense.",
   errImportRow: (title: string) => `Check "${title}" — amount, split or exchange rate is missing.`,
   // Duplicate warning

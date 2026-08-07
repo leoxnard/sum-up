@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useFetcher, useNavigate } from "react-router";
 
 import type { Route } from "./+types/group.import";
@@ -6,6 +6,7 @@ import { useGroup } from "./group";
 import { useT } from "../root";
 import { sql } from "../lib/server/db.server";
 import { extractExpensesFromImage } from "../lib/server/vision.server";
+import { extractExpensesFromVoice } from "../lib/server/voice.server";
 import { CATEGORIES } from "../lib/categories";
 import { CURRENCIES } from "../lib/currencies";
 import { formatCents, parseAmountToCents, toBaseCents } from "../lib/money";
@@ -13,6 +14,13 @@ import { computeShares } from "../lib/split";
 import { findDuplicates, type DuplicateMatch } from "../lib/duplicates";
 import { categoryLabel } from "../lib/i18n";
 import { resizeImage } from "../lib/client/image";
+import {
+  canRecord,
+  startRecording,
+  toWavDataUrl,
+  MAX_RECORDING_SECONDS,
+  type Recorder,
+} from "../lib/client/audio";
 import { submitOp } from "../lib/client/outbox";
 import { DuplicateLine } from "../components/DuplicateWarning";
 import {
@@ -21,7 +29,10 @@ import {
   IconArrowLeft,
   IconCalendar,
   IconChevronDown,
+  IconImage,
+  IconMic,
   IconSparkles,
+  IconStop,
   IconUser,
   IconUsers,
 } from "../components/icons";
@@ -32,29 +43,62 @@ export const handle = { wide: true };
 
 const today = () => new Date().toISOString().slice(0, 10);
 
+/** Which of the two capture paths a submission came from. */
+type Source = "image" | "voice";
+
 export async function action({ request, params }: Route.ActionArgs) {
   let dataUrl = "";
+  let source: Source = "image";
+  let meId: string | null = null;
   try {
-    const body = (await request.json()) as { dataUrl?: unknown };
+    const body = (await request.json()) as {
+      dataUrl?: unknown;
+      source?: unknown;
+      meId?: unknown;
+    };
     if (typeof body.dataUrl === "string") dataUrl = body.dataUrl;
+    if (body.source === "voice") source = "voice";
+    if (typeof body.meId === "string") meId = body.meId;
   } catch {
     return { ok: false as const, error: "unreadable" as const };
   }
-  // Bounded well below the serverless body limit; the client resizes first.
+  // Bounded well below the serverless body limit; the client resizes the image
+  // and records mono 16 kHz audio, both of which stay far under this.
   if (!dataUrl || dataUrl.length > 6_000_000) {
     return { ok: false as const, error: "too_large" as const };
   }
 
   // The slug is the credential, exactly like everywhere else — and it's also
   // where the base currency comes from, so the client can't influence it.
-  const rows = await sql<{ base_currency: string }[]>`
-    select base_currency from groups where slug = ${params.slug} and deleted_at is null
+  const rows = await sql<{ id: string; base_currency: string }[]>`
+    select id, base_currency from groups where slug = ${params.slug} and deleted_at is null
   `;
   if (rows.length === 0) throw new Response("Not found", { status: 404 });
+  const group = rows[0];
 
-  const result = await extractExpensesFromImage(dataUrl, rows[0].base_currency, today());
+  if (source === "voice") {
+    // Member names come from the database, never from the request: they are what
+    // a spoken name is matched against, and the match decides who owes money.
+    const members = await sql<{ id: string; name: string }[]>`
+      select id, name from members
+      where group_id = ${group.id} and deleted_at is null
+      order by created_at
+    `;
+    const speaker = members.find((m) => m.id === meId)?.name ?? null;
+    const spoken = await extractExpensesFromVoice(
+      dataUrl,
+      group.base_currency,
+      today(),
+      members,
+      speaker,
+    );
+    if (!spoken.ok) return { ok: false as const, error: spoken.error };
+    return { ok: true as const, expenses: spoken.expenses, transcript: spoken.transcript };
+  }
+
+  const result = await extractExpensesFromImage(dataUrl, group.base_currency, today());
   if (!result.ok) return { ok: false as const, error: result.error };
-  return { ok: true as const, expenses: result.expenses };
+  return { ok: true as const, expenses: result.expenses, transcript: null };
 }
 
 interface Row {
@@ -67,12 +111,13 @@ interface Row {
   category: CategoryKey;
   /** the user picked the category themselves — teaches the group's override table */
   categoryTouched: boolean;
+  note: string;
   payerId: string;
   participants: string[];
   expanded: boolean;
 }
 
-export default function ImportFromImage() {
+export default function ImportExpenses() {
   const { snapshot, me, offline } = useGroup();
   const { t, intl } = useT();
   const navigate = useNavigate();
@@ -84,33 +129,50 @@ export default function ImportFromImage() {
   const defaultPayer = me && members.some((m) => m.id === me) ? me : (members[0]?.id ?? "");
   const allMemberIds = useMemo(() => members.map((m) => m.id), [members]);
 
+  const [source, setSource] = useState<Source>("image");
   const [image, setImage] = useState<string | null>(null);
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [zoomed, setZoomed] = useState(false);
   const [rows, setRows] = useState<Row[] | null>(null);
+  const [transcript, setTranscript] = useState<string | null>(null);
   const [rates, setRates] = useState<Record<string, { raw: string; failed: boolean }>>({});
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [recording, setRecording] = useState(false);
+  const [elapsed, setElapsed] = useState(0);
+  const [level, setLevel] = useState(0);
   const fileInput = useRef<HTMLInputElement>(null);
+  const recorder = useRef<Recorder | null>(null);
+  const startedAt = useRef(0);
 
   const analyzing = fetcher.state !== "idle";
 
-  // Turn a finished extraction into editable rows, applying the defaults:
-  // whoever is importing paid, split equally between everyone.
+  // Turn a finished extraction into editable rows. Whatever the source named
+  // wins; everything it left open falls back to the common case — whoever is
+  // importing paid, split equally between everyone.
   useEffect(() => {
     const data = fetcher.data;
     if (!data) return;
     if (!data.ok) {
+      const voice = source === "voice";
       setError(
         data.error === "no_key"
-          ? t.importUnavailable
+          ? voice
+            ? t.voiceUnavailable
+            : t.importUnavailable
           : data.error === "too_large"
-            ? t.importTooLarge
-            : t.importFailed,
+            ? voice
+              ? t.voiceTooLong
+              : t.importTooLarge
+            : voice
+              ? t.voiceFailed
+              : t.importFailed,
       );
       setRows(null);
       return;
     }
     setError(null);
+    setTranscript(data.transcript);
     setRows(
       data.expenses.map((expense) => ({
         id: crypto.randomUUID(),
@@ -121,8 +183,12 @@ export default function ImportFromImage() {
         date: expense.date ?? today(),
         category: expense.category ?? "other",
         categoryTouched: false,
-        payerId: defaultPayer,
-        participants: allMemberIds,
+        note: expense.note ?? "",
+        payerId:
+          expense.payerId && members.some((m) => m.id === expense.payerId)
+            ? expense.payerId
+            : defaultPayer,
+        participants: expense.participantIds?.length ? expense.participantIds : allMemberIds,
         expanded: false,
       })),
     );
@@ -153,13 +219,30 @@ export default function ImportFromImage() {
     }
   }, [foreignCurrencies, rates, base]);
 
-  async function onPickFile(file: File) {
-    setError(null);
+  function reset(next: Source) {
+    setSource(next);
     setRows(null);
+    setTranscript(null);
+    setError(null);
+    setImage(null);
+    setAudioUrl((current) => {
+      if (current) URL.revokeObjectURL(current);
+      return null;
+    });
+  }
+
+  /** Everything is online-only: the model lives on the server. */
+  function requireConnection(): boolean {
     if (offline || !navigator.onLine) {
       setError(t.importOffline);
-      return;
+      return false;
     }
+    return true;
+  }
+
+  async function onPickFile(file: File) {
+    reset("image");
+    if (!requireConnection()) return;
     let dataUrl: string;
     try {
       dataUrl = await resizeImage(file, 1500, 0.8);
@@ -169,8 +252,90 @@ export default function ImportFromImage() {
       return;
     }
     setImage(dataUrl);
-    fetcher.submit({ dataUrl }, { method: "post", encType: "application/json" });
+    fetcher.submit({ dataUrl, source: "image" }, { method: "post", encType: "application/json" });
   }
+
+  async function onStartRecording() {
+    reset("voice");
+    if (!requireConnection()) return;
+    if (!canRecord()) {
+      setError(t.voiceUnsupported);
+      return;
+    }
+    try {
+      recorder.current = await startRecording();
+    } catch (failure) {
+      setError(
+        failure instanceof Error && failure.message === "denied"
+          ? t.voiceDenied
+          : t.voiceUnsupported,
+      );
+      return;
+    }
+    startedAt.current = Date.now();
+    setElapsed(0);
+    setLevel(0);
+    setRecording(true);
+  }
+
+  const onStopRecording = useCallback(
+    async function onStopRecording() {
+      const active = recorder.current;
+      if (!active) return;
+      recorder.current = null;
+      setRecording(false);
+      let blob: Blob;
+      try {
+        blob = await active.stop();
+      } catch {
+        setError(t.voiceFailed);
+        return;
+      }
+      let dataUrl: string;
+      try {
+        dataUrl = await toWavDataUrl(blob);
+      } catch {
+        setError(t.voiceFailed);
+        return;
+      }
+      // The original recording (not the 16 kHz mono copy) is what the user gets
+      // to play back while reviewing.
+      setAudioUrl(URL.createObjectURL(blob));
+      fetcher.submit(
+        { dataUrl, source: "voice", meId: me ?? null },
+        { method: "post", encType: "application/json" },
+      );
+    },
+    [fetcher, me, t],
+  );
+
+  function onDiscardRecording() {
+    recorder.current?.cancel();
+    recorder.current = null;
+    setRecording(false);
+  }
+
+  // Drive the timer and the level meter, and stop by itself at the cap rather
+  // than letting someone record a monologue we then can't upload.
+  useEffect(() => {
+    if (!recording) return;
+    const id = window.setInterval(() => {
+      const seconds = (Date.now() - startedAt.current) / 1000;
+      setElapsed(seconds);
+      setLevel(recorder.current?.level() ?? 0);
+      if (seconds >= MAX_RECORDING_SECONDS) void onStopRecording();
+    }, 100);
+    return () => window.clearInterval(id);
+  }, [recording, onStopRecording]);
+
+  // Leaving mid-recording must release the microphone.
+  useEffect(
+    () => () => {
+      recorder.current?.cancel();
+      recorder.current = null;
+    },
+    [],
+  );
 
   function patchRow(id: string, patch: Partial<Row>) {
     setRows((current) => current?.map((r) => (r.id === id ? { ...r, ...patch } : r)) ?? null);
@@ -244,9 +409,9 @@ export default function ImportFromImage() {
           id: row.id,
           kind: "expense",
           title: row.title.trim(),
-          note: null,
+          note: row.note.trim() || null,
           category: row.category,
-          // A reviewed vision guess is trustworthy enough to keep, but only a
+          // A reviewed guess is trustworthy enough to keep, but only a
           // deliberate pick teaches the group's learned categories.
           categorySource: row.categoryTouched ? "manual" : "llm",
           payerId: row.payerId,
@@ -259,9 +424,10 @@ export default function ImportFromImage() {
           shares: split.shares,
         },
         // A single-expense image is a receipt for that expense — keep it. For a
-        // transaction list the same screenshot on every entry is just noise.
-        photoDataUrl: selected.length === 1 ? image : null,
-        photoChanged: selected.length === 1 && image !== null,
+        // transaction list the same screenshot on every entry is just noise,
+        // and a voice message is no one's receipt.
+        photoDataUrl: source === "image" && selected.length === 1 ? image : null,
+        photoChanged: source === "image" && selected.length === 1 && image !== null,
       });
     }
     setSaving(true);
@@ -276,54 +442,79 @@ export default function ImportFromImage() {
           <IconArrowLeft className="size-5" />
         </Link>
         <h1 className="min-w-0 flex-1 truncate text-xl font-bold tracking-tight">
-          {t.importFromImage}
+          {t.importTitle}
         </h1>
       </header>
 
       {rows === null ? (
         <PickScreen
           analyzing={analyzing}
+          source={source}
           image={image}
+          recording={recording}
+          elapsed={elapsed}
+          level={level}
           error={error}
-          onPick={() => fileInput.current?.click()}
+          onPickImage={() => fileInput.current?.click()}
+          onStartRecording={() => void onStartRecording()}
+          onStopRecording={() => void onStopRecording()}
+          onDiscardRecording={onDiscardRecording}
         />
       ) : (
         <div className="mt-5 gap-6 md:grid md:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] md:items-start">
           <figure className="md:sticky md:top-6">
-            <button
-              type="button"
-              onClick={() => setZoomed((z) => !z)}
-              className="card block w-full overflow-hidden bg-[var(--surface-sunken)] p-0"
-            >
-              <img
-                src={image ?? undefined}
-                alt={t.importOriginal}
-                className={`w-full object-contain transition-[max-height] duration-300 ${
-                  zoomed ? "max-h-[none]" : "max-h-56 md:max-h-[70vh]"
-                }`}
-              />
-            </button>
+            {source === "image" ? (
+              <button
+                type="button"
+                onClick={() => setZoomed((z) => !z)}
+                className="card block w-full overflow-hidden bg-[var(--surface-sunken)] p-0"
+              >
+                <img
+                  src={image ?? undefined}
+                  alt={t.importOriginal}
+                  className={`w-full object-contain transition-[max-height] duration-300 ${
+                    zoomed ? "max-h-[none]" : "max-h-56 md:max-h-[70vh]"
+                  }`}
+                />
+              </button>
+            ) : (
+              <div className="card bg-[var(--surface-sunken)]">
+                {audioUrl && (
+                  <audio src={audioUrl} controls className="w-full" aria-label={t.voiceRecording} />
+                )}
+                {/* What the model heard. Seeing it is how a misread amount gets
+                    explained instead of just looking wrong. */}
+                <p className="mt-3 max-h-56 overflow-y-auto whitespace-pre-wrap text-sm leading-relaxed text-[var(--text-muted)] md:max-h-[50vh]">
+                  {transcript || t.voiceNoTranscript}
+                </p>
+              </div>
+            )}
             <figcaption className="mt-1.5 flex items-center justify-between px-1 text-xs text-[var(--text-muted)]">
-              <span>{t.importOriginal}</span>
+              <span>{source === "image" ? t.importOriginal : t.voiceTranscript}</span>
               <button
                 type="button"
                 onClick={() => {
-                  setRows(null);
-                  setImage(null);
-                  fileInput.current?.click();
+                  if (source === "image") {
+                    reset("image");
+                    fileInput.current?.click();
+                  } else {
+                    reset("voice");
+                    void onStartRecording();
+                  }
                 }}
                 className="font-medium underline underline-offset-2"
               >
-                {t.importRetry}
+                {source === "image" ? t.importRetry : t.voiceRetry}
               </button>
             </figcaption>
           </figure>
 
           <section className="mt-5 md:mt-0">
             {rows.length === 0 ? (
-              <p className="card px-4 py-8 text-center text-sm text-[var(--text-muted)]">
-                {t.importNothingFound}
-              </p>
+              <div className="card px-4 py-8 text-center text-sm text-[var(--text-muted)]">
+                <p>{source === "image" ? t.importNothingFound : t.voiceNothingFound}</p>
+                {source === "voice" && <p className="mt-1 text-xs">{t.voiceNothingHint}</p>}
+              </div>
             ) : (
               <>
                 <div className="flex items-center justify-between gap-2">
@@ -434,7 +625,7 @@ export default function ImportFromImage() {
                   </div>
                 )}
 
-                {selected.length === 1 && image && (
+                {source === "image" && selected.length === 1 && image && (
                   <p className="mt-3 text-xs text-[var(--text-muted)]">{t.importPhotoAttached}</p>
                 )}
               </>
@@ -504,22 +695,75 @@ function selectedTotalLabel(
   return total > 0 ? formatCents(total, base, intl) : "";
 }
 
+function clock(seconds: number): string {
+  const whole = Math.floor(seconds);
+  return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, "0")}`;
+}
+
 function PickScreen({
   analyzing,
+  source,
   image,
+  recording,
+  elapsed,
+  level,
   error,
-  onPick,
+  onPickImage,
+  onStartRecording,
+  onStopRecording,
+  onDiscardRecording,
 }: {
   analyzing: boolean;
+  source: Source;
   image: string | null;
+  recording: boolean;
+  elapsed: number;
+  level: number;
   error: string | null;
-  onPick: () => void;
+  onPickImage: () => void;
+  onStartRecording: () => void;
+  onStopRecording: () => void;
+  onDiscardRecording: () => void;
 }) {
   const { t } = useT();
-  return (
-    <div className="animate-rise mx-auto mt-6 max-w-lg text-center">
-      {analyzing && image ? (
-        <>
+
+  if (recording) {
+    const left = Math.max(0, MAX_RECORDING_SECONDS - elapsed);
+    return (
+      <div className="animate-rise mx-auto mt-10 max-w-lg text-center">
+        <button
+          type="button"
+          onClick={onStopRecording}
+          aria-label={t.voiceStop}
+          className="relative mx-auto flex size-28 items-center justify-center rounded-full bg-rose-500 text-white shadow-lg"
+        >
+          {/* The ring follows the microphone, so silence is visible as silence. */}
+          <span
+            aria-hidden
+            style={{ transform: `scale(${1 + level * 0.35})` }}
+            className="absolute inset-0 rounded-full bg-rose-500/30 transition-transform duration-100"
+          />
+          <IconStop className="relative size-9" />
+        </button>
+        <p className="mt-6 text-2xl font-semibold tabular-nums">{clock(elapsed)}</p>
+        <p className="mt-1 text-sm text-[var(--text-muted)]">
+          {left <= 15 ? t.voiceTimeLeft(Math.ceil(left)) : t.voiceRecordingHint}
+        </p>
+        <button
+          type="button"
+          onClick={onDiscardRecording}
+          className="btn btn-neutral mt-8 w-full"
+        >
+          {t.voiceDiscard}
+        </button>
+      </div>
+    );
+  }
+
+  if (analyzing) {
+    return (
+      <div className="animate-rise mx-auto mt-6 max-w-lg text-center">
+        {source === "image" && image ? (
           <div className="card relative mx-auto overflow-hidden">
             <img src={image} alt="" className="max-h-72 w-full object-contain opacity-60" />
             {/* A sweep across the image while the model reads it. */}
@@ -528,28 +772,42 @@ function PickScreen({
               className="animate-scan pointer-events-none absolute inset-x-0 h-24 bg-gradient-to-b from-transparent via-[var(--accent)]/25 to-transparent"
             />
           </div>
-          <p className="mt-5 flex items-center justify-center gap-2 font-medium">
-            <IconSparkles className="size-5 animate-pulse text-[var(--accent)]" />
-            {t.importAnalyzing}
-          </p>
-          <p className="mt-1 text-sm text-[var(--text-muted)]">{t.importAnalyzingHint}</p>
-        </>
-      ) : (
-        <>
+        ) : (
           <span className="glyph mx-auto mb-4 flex size-14 items-center justify-center">
-            <IconSparkles className="size-7 text-[var(--accent)]" />
+            <IconMic className="size-7 animate-pulse text-[var(--accent)]" />
           </span>
-          <p className="text-sm text-[var(--text-muted)]">{t.importIntro}</p>
-          {error && (
-            <p className="animate-pop mt-4 rounded-xl bg-rose-500/10 px-3.5 py-2.5 text-sm font-medium text-rose-600 dark:text-rose-400">
-              {error}
-            </p>
-          )}
-          <button onClick={onPick} className="btn btn-primary btn-lg mt-6 w-full">
-            {t.importPickImage}
-          </button>
-        </>
+        )}
+        <p className="mt-5 flex items-center justify-center gap-2 font-medium">
+          <IconSparkles className="size-5 animate-pulse text-[var(--accent)]" />
+          {source === "image" ? t.importAnalyzing : t.voiceAnalyzing}
+        </p>
+        <p className="mt-1 text-sm text-[var(--text-muted)]">{t.importAnalyzingHint}</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="animate-rise mx-auto mt-6 max-w-lg text-center">
+      <span className="glyph mx-auto mb-4 flex size-14 items-center justify-center">
+        <IconSparkles className="size-7 text-[var(--accent)]" />
+      </span>
+      <p className="text-sm text-[var(--text-muted)]">{t.importIntro}</p>
+      {error && (
+        <p className="animate-pop mt-4 rounded-xl bg-rose-500/10 px-3.5 py-2.5 text-sm font-medium text-rose-600 dark:text-rose-400">
+          {error}
+        </p>
       )}
+      <div className="mt-6 flex flex-col gap-2.5">
+        <button onClick={onStartRecording} className="btn btn-primary btn-lg w-full">
+          <IconMic className="size-[1.15em]" />
+          {t.voiceRecord}
+        </button>
+        <button onClick={onPickImage} className="btn btn-neutral btn-lg w-full">
+          <IconImage className="size-[1.15em]" />
+          {t.importPickImage}
+        </button>
+      </div>
+      <p className="mt-3 text-xs text-[var(--text-muted)]">{t.voiceIntroHint}</p>
     </div>
   );
 }
@@ -702,31 +960,47 @@ function ExpenseRow({
         )}
       </div>
 
+      {/* A spoken aside ends up here — visible without expanding, because it's
+          part of what the user is being asked to check. */}
+      {row.note.trim() && !row.expanded && (
+        <p className="mt-1 truncate pl-8 text-xs text-[var(--text-muted)]">{row.note}</p>
+      )}
+
       <DuplicateLine matches={matches} memberName={memberName} className="mt-1.5 pl-8" />
 
       {row.expanded && (
-        <div className="mt-2 flex flex-wrap gap-1.5 pl-8">
-          {members.map((member) => {
-            const on = row.participants.includes(member.id);
-            return (
-              <button
-                key={member.id}
-                type="button"
-                aria-pressed={on}
-                onClick={() =>
-                  onChange({
-                    participants: on
-                      ? row.participants.filter((id) => id !== member.id)
-                      : members.filter((m) => m.id === member.id || row.participants.includes(m.id))
-                          .map((m) => m.id),
-                  })
-                }
-                className="pill aria-pressed:border-[var(--accent)] aria-pressed:bg-[var(--accent)] aria-pressed:text-white"
-              >
-                {member.name}
-              </button>
-            );
-          })}
+        <div className="mt-2 pl-8">
+          <div className="flex flex-wrap gap-1.5">
+            {members.map((member) => {
+              const on = row.participants.includes(member.id);
+              return (
+                <button
+                  key={member.id}
+                  type="button"
+                  aria-pressed={on}
+                  onClick={() =>
+                    onChange({
+                      participants: on
+                        ? row.participants.filter((id) => id !== member.id)
+                        : members
+                            .filter((m) => m.id === member.id || row.participants.includes(m.id))
+                            .map((m) => m.id),
+                    })
+                  }
+                  className="pill aria-pressed:border-[var(--accent)] aria-pressed:bg-[var(--accent)] aria-pressed:text-white"
+                >
+                  {member.name}
+                </button>
+              );
+            })}
+          </div>
+          <input
+            value={row.note}
+            onChange={(e) => onChange({ note: e.target.value })}
+            placeholder={t.note}
+            aria-label={t.note}
+            className="mt-2 w-full bg-transparent text-sm outline-none placeholder:text-[var(--text-muted)]"
+          />
         </div>
       )}
     </div>

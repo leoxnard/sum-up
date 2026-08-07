@@ -520,7 +520,7 @@ export function EntryForm({ snapshot, kind, me, entry }: Props) {
               {!entry && (
                 <Link to={`/g/${group.slug}/import`} className="btn btn-neutral">
                   <IconSparkles className="size-[1.15em]" />
-                  {t.importFromImage}
+                  {t.importTitle}
                 </Link>
               )}
               {(photoDataUrl || existingPhotoUrl) && (

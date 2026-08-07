@@ -119,12 +119,13 @@ export default function GroupOverview() {
           <Link to="new-payment" className="btn btn-neutral btn-lg flex-1">
             {t.addPayment}
           </Link>
-          {/* Scan is a shortcut into the same "add expenses" job, so it sits
-              next to the primary action rather than in the header. */}
+          {/* Capturing by voice or photo is a shortcut into the same "add
+              expenses" job, so it sits next to the primary action rather than
+              in the header. */}
           <Link
             to="import"
-            aria-label={t.importFromImage}
-            title={t.importFromImage}
+            aria-label={t.importTitle}
+            title={t.importTitle}
             className="btn btn-neutral btn-lg shrink-0 px-0 w-[var(--control-h-lg)]"
           >
             <IconSparkles className="size-[1.25em]" />

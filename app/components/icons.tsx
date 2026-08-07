@@ -177,6 +177,23 @@ export function IconImage(props: IconProps) {
   );
 }
 
+export function IconMic(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <rect x="9" y="2.8" width="6" height="11.4" rx="3" />
+      <path d="M5.5 11.2a6.5 6.5 0 0 0 13 0M12 17.7V21" />
+    </Svg>
+  );
+}
+
+export function IconStop(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <rect x="6" y="6" width="12" height="12" rx="2.2" fill="currentColor" />
+    </Svg>
+  );
+}
+
 export function IconUser(props: IconProps) {
   return (
     <Svg {...props}>
