@@ -68,7 +68,7 @@ export default function Home() {
   }
 
   return (
-    <main className="mx-auto min-h-dvh max-w-lg px-4 pb-16 pt-12">
+    <main className="mx-auto flex min-h-dvh max-w-lg flex-col px-4 pb-16 pt-12">
       <header className="animate-rise">
         <h1 className="text-4xl font-extrabold tracking-tight">
           Sum <span className="text-[var(--accent)]">Up</span>
@@ -142,7 +142,11 @@ export default function Home() {
         )}
       </section>
 
-      <p className="mt-14 text-center text-xs text-[var(--text-muted)]">{t.installHint}</p>
+      {/* mt-auto keeps the hint pinned to the bottom edge when the page is
+          short, instead of floating right under the last section. */}
+      <footer className="mt-auto pt-14 text-center text-xs text-[var(--text-muted)]">
+        {t.installHint}
+      </footer>
     </main>
   );
 }
