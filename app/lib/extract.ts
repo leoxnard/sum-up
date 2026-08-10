@@ -32,6 +32,9 @@ export interface Extraction {
   transcript: string | null;
 }
 
+/** Longer than any note someone types by hand, short enough to stay one cheap call. */
+export const MAX_TEXT_LENGTH = 4000;
+
 export interface ExtractMember {
   id: string;
   name: string;

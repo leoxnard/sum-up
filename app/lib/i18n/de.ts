@@ -95,7 +95,7 @@ export const de: Dictionary = {
   importTitle: "Ausgaben erfassen",
   importShort: "Scannen",
   importIntro:
-    "Sag einfach, was du ausgegeben hast — oder lade einen Screenshot aus deiner Banking-App oder ein Foto von einem Kassenbon hoch. Die Ausgaben werden automatisch erkannt.",
+    "Tipp es, sag es, oder füg einen Screenshot aus deiner Banking-App ein — die Ausgaben werden automatisch erkannt.",
   importPickImage: "Bild auswählen",
   importTakePhoto: "Foto aufnehmen",
   importAnalyzing: "Bild wird gelesen…",
@@ -105,7 +105,7 @@ export const de: Dictionary = {
   // Sobald eine Rückzahlung dabei ist, wäre „Ausgabe" falsch.
   importFoundEntries: (n: number) => (n === 1 ? "1 Eintrag gefunden" : `${n} Einträge gefunden`),
   importNothingFound: "Auf diesem Bild wurden keine Ausgaben gefunden.",
-  importUnavailable: "Die Bilderkennung ist auf diesem Server nicht eingerichtet.",
+  importUnavailable: "Die automatische Erkennung ist auf diesem Server nicht eingerichtet.",
   importFailed:
     "Das Bild konnte nicht gelesen werden. Versuch es nochmal oder trag die Ausgabe von Hand ein.",
   importOffline: "Für die automatische Erkennung brauchst du eine Internetverbindung.",
@@ -128,6 +128,20 @@ export const de: Dictionary = {
       ? "1 Eintrag steht vielleicht schon in der Gruppe."
       : `${n} Einträge stehen vielleicht schon in der Gruppe.`,
   importDupDeselect: "Abwählen",
+  // Text und Zwischenablage
+  textPlaceholder: "z. B. 24,50 Einkauf gestern, Ben hat bezahlt — oder Nachricht einfügen",
+  textSubmit: "Auswerten",
+  textAnalyzing: "Text wird gelesen…",
+  textOriginal: "Dein Text",
+  textEdit: "Text ändern",
+  textNothingFound: "In diesem Text wurden keine Ausgaben gefunden.",
+  textFailed:
+    "Der Text konnte nicht ausgewertet werden. Versuch es nochmal oder trag die Ausgabe von Hand ein.",
+  textTooLong: "Dieser Text ist zu lang.",
+  pasteClipboard: "Einfügen",
+  pasteHint: "Screenshot in der Zwischenablage? Einfügen und es geht sofort los.",
+  pasteEmpty: "In deiner Zwischenablage ist nichts Verwertbares.",
+  pasteDenied: "Die Zwischenablage darf hier nicht gelesen werden — nimm Strg+V (⌘V).",
   // Sprachnachricht
   voiceRecord: "Sprachnachricht aufnehmen",
   voiceIntroHint:
@@ -146,7 +160,6 @@ export const de: Dictionary = {
   voiceDenied:
     "Der Zugriff aufs Mikrofon ist blockiert. Erlaub ihn in den Browser-Einstellungen und versuch es nochmal.",
   voiceUnsupported: "Dieser Browser kann keine Aufnahmen machen.",
-  voiceUnavailable: "Die Spracherkennung ist auf diesem Server nicht eingerichtet.",
   voiceTooLong: "Diese Aufnahme ist zu lang.",
   voiceFailed: "Die Aufnahme konnte nicht verwendet werden. Bitte versuch es nochmal.",
   errImportNoneSelected: "Wähle mindestens eine Ausgabe aus.",

@@ -30,8 +30,15 @@ Agreed in a grilling session on 2026-07-18; this file is the spec of record.
 - Editable expense date (default today), optional note.
 - **Receipt photos**: stored in Postgres (bytea), client-side resize before upload, served via a
   slug-gated route. Free tier only, no Supabase Storage subscription.
-- **Capture expenses** (`/g/:slug/import`): one screen with two ways in — record a voice message
-  or pick an image — both landing in the same review list before anything is written.
+- **Capture expenses** (`/g/:slug/import`): one screen with four ways in — write or paste text,
+  paste an image straight from the clipboard, record a voice message, or pick an image file — all
+  landing in the same review list before anything is written.
+- **Text and clipboard**: a box takes typed or pasted text (a chat message, a line copied out of a
+  banking app, a note) and reads it with the same rules as the voice path — the text is quoted
+  inside the prompt, so a pasted "ignore the above" is data and not an order. A "paste" button
+  reads the clipboard and, if it holds an image, resizes and sends it in one tap with no second
+  confirmation; ⌘V / Strg+V anywhere on the screen does the same, and inside the box it stays an
+  ordinary paste. Browsers that refuse clipboard reads say so and point at ⌘V.
 - **Voice message**: recorded in the browser (`MediaRecorder`, capped at 90 s), decoded and
   re-encoded client-side as 16 kHz mono WAV so every browser's container becomes one format the
   model accepts and the upload stays small. Gemini transcribes and extracts in one call: one

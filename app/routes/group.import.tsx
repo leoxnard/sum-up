@@ -7,6 +7,7 @@ import { useT } from "../root";
 import { sql } from "../lib/server/db.server";
 import { extractExpensesFromImage } from "../lib/server/vision.server";
 import { extractExpensesFromVoice } from "../lib/server/voice.server";
+import { extractExpensesFromText } from "../lib/server/text.server";
 import { CATEGORIES } from "../lib/categories";
 import { CURRENCIES } from "../lib/currencies";
 import { formatCents, parseAmountToCents, toBaseCents } from "../lib/money";
@@ -14,6 +15,7 @@ import { computeShares } from "../lib/split";
 import { findDuplicates, type DuplicateMatch } from "../lib/duplicates";
 import { categoryLabel } from "../lib/i18n";
 import { resizeImage } from "../lib/client/image";
+import { fromPasteEvent, readClipboard, type Pasted } from "../lib/client/clipboard";
 import {
   canRecord,
   startRecording,
@@ -31,13 +33,16 @@ import {
   IconArrowRight,
   IconChevronDown,
   IconExchange,
+  IconClipboard,
   IconImage,
   IconMic,
   IconSparkles,
   IconStop,
+  IconText,
   IconUser,
   IconUsers,
 } from "../components/icons";
+import { MAX_TEXT_LENGTH } from "../lib/extract";
 import type { CategoryKey, SyncOp } from "../lib/types";
 
 /** Widens the group shell — the review needs two columns on a big screen. */
@@ -45,28 +50,34 @@ export const handle = { wide: true };
 
 const today = () => new Date().toISOString().slice(0, 10);
 
-/** Which of the two capture paths a submission came from. */
-type Source = "image" | "voice";
+/** Which of the capture paths a submission came from. */
+type Source = "image" | "voice" | "text";
 
 export async function action({ request, params }: Route.ActionArgs) {
   let dataUrl = "";
+  let text = "";
   let source: Source = "image";
   let meId: string | null = null;
   try {
     const body = (await request.json()) as {
       dataUrl?: unknown;
+      text?: unknown;
       source?: unknown;
       meId?: unknown;
     };
     if (typeof body.dataUrl === "string") dataUrl = body.dataUrl;
-    if (body.source === "voice") source = "voice";
+    if (typeof body.text === "string") text = body.text;
+    if (body.source === "voice" || body.source === "text") source = body.source;
     if (typeof body.meId === "string") meId = body.meId;
   } catch {
     return { ok: false as const, error: "unreadable" as const };
   }
-  // Bounded well below the serverless body limit; the client resizes the image
-  // and records mono 16 kHz audio, both of which stay far under this.
-  if (!dataUrl || dataUrl.length > 6_000_000) {
+  if (source === "text") {
+    if (!text.trim()) return { ok: false as const, error: "unreadable" as const };
+    if (text.length > MAX_TEXT_LENGTH) return { ok: false as const, error: "too_large" as const };
+  } else if (!dataUrl || dataUrl.length > 6_000_000) {
+    // Bounded well below the serverless body limit; the client resizes the image
+    // and records mono 16 kHz audio, both of which stay far under this.
     return { ok: false as const, error: "too_large" as const };
   }
 
@@ -78,24 +89,26 @@ export async function action({ request, params }: Route.ActionArgs) {
   if (rows.length === 0) throw new Response("Not found", { status: 404 });
   const group = rows[0];
 
-  if (source === "voice") {
+  if (source === "voice" || source === "text") {
     // Member names come from the database, never from the request: they are what
-    // a spoken name is matched against, and the match decides who owes money.
+    // a named person is matched against, and the match decides who owes money.
     const members = await sql<{ id: string; name: string }[]>`
       select id, name from members
       where group_id = ${group.id} and deleted_at is null
       order by created_at
     `;
     const speaker = members.find((m) => m.id === meId)?.name ?? null;
-    const spoken = await extractExpensesFromVoice(
-      dataUrl,
-      group.base_currency,
-      today(),
-      members,
-      speaker,
-    );
-    if (!spoken.ok) return { ok: false as const, error: spoken.error };
-    return { ok: true as const, expenses: spoken.expenses, transcript: spoken.transcript };
+    const described =
+      source === "voice"
+        ? await extractExpensesFromVoice(dataUrl, group.base_currency, today(), members, speaker)
+        : await extractExpensesFromText(text, group.base_currency, today(), members, speaker);
+    if (!described.ok) return { ok: false as const, error: described.error };
+    return {
+      ok: true as const,
+      expenses: described.expenses,
+      // The written message is already on screen; only speech needs a transcript.
+      transcript: source === "voice" ? described.transcript : null,
+    };
   }
 
   const result = await extractExpensesFromImage(dataUrl, group.base_currency, today());
@@ -136,6 +149,8 @@ export default function ImportExpenses() {
 
   const [source, setSource] = useState<Source>("image");
   const [image, setImage] = useState<string | null>(null);
+  const [text, setText] = useState("");
+  const [submittedText, setSubmittedText] = useState("");
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [zoomed, setZoomed] = useState(false);
   const [rows, setRows] = useState<Row[] | null>(null);
@@ -159,19 +174,15 @@ export default function ImportExpenses() {
     const data = fetcher.data;
     if (!data) return;
     if (!data.ok) {
-      const voice = source === "voice";
+      // Same failure, three different things to say about it.
+      const tooBig = { image: t.importTooLarge, voice: t.voiceTooLong, text: t.textTooLong };
+      const failed = { image: t.importFailed, voice: t.voiceFailed, text: t.textFailed };
       setError(
         data.error === "no_key"
-          ? voice
-            ? t.voiceUnavailable
-            : t.importUnavailable
+          ? t.importUnavailable
           : data.error === "too_large"
-            ? voice
-              ? t.voiceTooLong
-              : t.importTooLarge
-            : voice
-              ? t.voiceFailed
-              : t.importFailed,
+            ? tooBig[source]
+            : failed[source],
       );
       setRows(null);
       return;
@@ -235,6 +246,7 @@ export default function ImportExpenses() {
     setTranscript(null);
     setError(null);
     setImage(null);
+    if (next !== "text") setSubmittedText("");
     setAudioUrl((current) => {
       if (current) URL.revokeObjectURL(current);
       return null;
@@ -264,6 +276,75 @@ export default function ImportExpenses() {
     setImage(dataUrl);
     fetcher.submit({ dataUrl, source: "image" }, { method: "post", encType: "application/json" });
   }
+
+  function onSubmitText(value: string) {
+    const trimmed = value.trim();
+    if (!trimmed) return;
+    reset("text");
+    setText(trimmed);
+    setSubmittedText(trimmed);
+    if (!requireConnection()) return;
+    fetcher.submit(
+      { text: trimmed.slice(0, MAX_TEXT_LENGTH), source: "text", meId: me ?? null },
+      { method: "post", encType: "application/json" },
+    );
+  }
+
+  /**
+   * Whatever is in the clipboard, taken as far as it goes on its own: an image
+   * is read, shrunk and sent without a second tap, text starts the same way.
+   */
+  async function onPaste(pasted: Pasted) {
+    if (pasted.kind === "text") {
+      onSubmitText(pasted.text);
+      return;
+    }
+    if (pasted.kind === "empty") {
+      setError(t.pasteEmpty);
+      return;
+    }
+    reset("image");
+    if (!requireConnection()) return;
+    let dataUrl: string;
+    try {
+      dataUrl = await resizeImage(pasted.blob, 1500, 0.8);
+    } catch {
+      setError(t.importFailed);
+      return;
+    }
+    setImage(dataUrl);
+    fetcher.submit({ dataUrl, source: "image" }, { method: "post", encType: "application/json" });
+  }
+
+  async function onPasteButton() {
+    setError(null);
+    try {
+      await onPaste(await readClipboard());
+    } catch {
+      // No permission, or a browser that only pastes through the keyboard.
+      setError(t.pasteDenied);
+    }
+  }
+
+  // ⌘V / Strg+V anywhere on the pick screen does the same thing as the button,
+  // which is how a screenshot actually reaches this page on a desktop.
+  useEffect(() => {
+    if (rows !== null || recording || analyzing) return;
+    const onDocumentPaste = (event: ClipboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      // Inside the text box, a paste is an ordinary paste.
+      if (target?.tagName === "TEXTAREA" || target?.tagName === "INPUT") return;
+      const pasted = fromPasteEvent(event);
+      if (pasted.kind === "empty") return;
+      event.preventDefault();
+      void onPaste(pasted);
+    };
+    document.addEventListener("paste", onDocumentPaste);
+    return () => document.removeEventListener("paste", onDocumentPaste);
+    // onPaste closes over the fetcher and the translations, both stable enough
+    // for the lifetime of the pick screen.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows, recording, analyzing]);
 
   async function onStartRecording() {
     reset("voice");
@@ -472,10 +553,14 @@ export default function ImportExpenses() {
           analyzing={analyzing}
           source={source}
           image={image}
+          text={text}
           recording={recording}
           elapsed={elapsed}
           level={level}
           error={error}
+          onTextChange={setText}
+          onSubmitText={() => onSubmitText(text)}
+          onPasteClipboard={() => void onPasteButton()}
           onPickImage={() => fileInput.current?.click()}
           onStartRecording={() => void onStartRecording()}
           onStopRecording={() => void onStopRecording()}
@@ -498,6 +583,12 @@ export default function ImportExpenses() {
                   }`}
                 />
               </button>
+            ) : source === "text" ? (
+              <div className="card bg-[var(--surface-sunken)]">
+                <p className="max-h-56 overflow-y-auto whitespace-pre-wrap text-sm leading-relaxed md:max-h-[50vh]">
+                  {submittedText}
+                </p>
+              </div>
             ) : (
               <div className="card bg-[var(--surface-sunken)]">
                 {audioUrl && (
@@ -511,13 +602,23 @@ export default function ImportExpenses() {
               </div>
             )}
             <figcaption className="mt-1.5 flex items-center justify-between px-1 text-xs text-[var(--text-muted)]">
-              <span>{source === "image" ? t.importOriginal : t.voiceTranscript}</span>
+              <span>
+                {source === "image"
+                  ? t.importOriginal
+                  : source === "text"
+                    ? t.textOriginal
+                    : t.voiceTranscript}
+              </span>
               <button
                 type="button"
                 onClick={() => {
                   if (source === "image") {
                     reset("image");
                     fileInput.current?.click();
+                  } else if (source === "text") {
+                    // Back to the box with the text still in it, ready to fix.
+                    setRows(null);
+                    setError(null);
                   } else {
                     reset("voice");
                     void onStartRecording();
@@ -525,7 +626,11 @@ export default function ImportExpenses() {
                 }}
                 className="font-medium underline underline-offset-2"
               >
-                {source === "image" ? t.importRetry : t.voiceRetry}
+                {source === "image"
+                  ? t.importRetry
+                  : source === "text"
+                    ? t.textEdit
+                    : t.voiceRetry}
               </button>
             </figcaption>
           </figure>
@@ -533,8 +638,14 @@ export default function ImportExpenses() {
           <section className="mt-5 md:mt-0">
             {rows.length === 0 ? (
               <div className="card px-4 py-8 text-center text-sm text-[var(--text-muted)]">
-                <p>{source === "image" ? t.importNothingFound : t.voiceNothingFound}</p>
-                {source === "voice" && <p className="mt-1 text-xs">{t.voiceNothingHint}</p>}
+                <p>
+                  {source === "image"
+                    ? t.importNothingFound
+                    : source === "text"
+                      ? t.textNothingFound
+                      : t.voiceNothingFound}
+                </p>
+                {source !== "image" && <p className="mt-1 text-xs">{t.voiceNothingHint}</p>}
               </div>
             ) : (
               <>
@@ -741,10 +852,14 @@ function PickScreen({
   analyzing,
   source,
   image,
+  text,
   recording,
   elapsed,
   level,
   error,
+  onTextChange,
+  onSubmitText,
+  onPasteClipboard,
   onPickImage,
   onStartRecording,
   onStopRecording,
@@ -753,10 +868,14 @@ function PickScreen({
   analyzing: boolean;
   source: Source;
   image: string | null;
+  text: string;
   recording: boolean;
   elapsed: number;
   level: number;
   error: string | null;
+  onTextChange: (value: string) => void;
+  onSubmitText: () => void;
+  onPasteClipboard: () => void;
   onPickImage: () => void;
   onStartRecording: () => void;
   onStopRecording: () => void;
@@ -811,12 +930,20 @@ function PickScreen({
           </div>
         ) : (
           <span className="glyph mx-auto mb-4 flex size-14 items-center justify-center">
-            <IconMic className="size-7 animate-pulse text-[var(--accent)]" />
+            {source === "voice" ? (
+              <IconMic className="size-7 animate-pulse text-[var(--accent)]" />
+            ) : (
+              <IconText className="size-7 animate-pulse text-[var(--accent)]" />
+            )}
           </span>
         )}
         <p className="mt-5 flex items-center justify-center gap-2 font-medium">
           <IconSparkles className="size-5 animate-pulse text-[var(--accent)]" />
-          {source === "image" ? t.importAnalyzing : t.voiceAnalyzing}
+          {source === "image"
+            ? t.importAnalyzing
+            : source === "voice"
+              ? t.voiceAnalyzing
+              : t.textAnalyzing}
         </p>
         <p className="mt-1 text-sm text-[var(--text-muted)]">{t.importAnalyzingHint}</p>
       </div>
@@ -834,7 +961,51 @@ function PickScreen({
           {error}
         </p>
       )}
-      <div className="mt-6 flex flex-col gap-2.5">
+
+      <div className="card mt-6 p-2 text-left">
+        <textarea
+          value={text}
+          onChange={(e) => onTextChange(e.target.value)}
+          onKeyDown={(e) => {
+            // Enter sends; a real newline is still one modifier away.
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              onSubmitText();
+            }
+          }}
+          rows={3}
+          maxLength={MAX_TEXT_LENGTH}
+          placeholder={t.textPlaceholder}
+          aria-label={t.textOriginal}
+          className="w-full resize-none bg-transparent px-1.5 py-1 text-sm outline-none placeholder:text-[var(--text-muted)]"
+        />
+        <div className="flex items-center gap-2">
+          {/* Always rendered: whether the browser will hand over the clipboard is
+              only knowable on the client, and hiding the button after hydration
+              would both flicker and mismatch the server's HTML. A browser that
+              refuses says so, and ⌘V still works. */}
+          <button
+            type="button"
+            onClick={onPasteClipboard}
+            className="btn btn-neutral shrink-0"
+            title={t.pasteHint}
+          >
+            <IconClipboard className="size-[1.15em]" />
+            {t.pasteClipboard}
+          </button>
+          <button
+            type="button"
+            onClick={onSubmitText}
+            disabled={!text.trim()}
+            className="btn btn-primary ml-auto"
+          >
+            {t.textSubmit}
+          </button>
+        </div>
+      </div>
+      <p className="mt-2 text-xs text-[var(--text-muted)]">{t.pasteHint}</p>
+
+      <div className="mt-5 flex flex-col gap-2.5">
         <button onClick={onStartRecording} className="btn btn-primary btn-lg w-full">
           <IconMic className="size-[1.15em]" />
           {t.voiceRecord}

@@ -11,12 +11,12 @@ export type ExtractionResult =
   | { ok: false; error: "no_key" | "unavailable" | "unreadable" };
 
 export interface ExtractionRequest {
-  /** the whole instruction, built by the image or voice caller */
+  /** the whole instruction, built by the image, voice or text caller */
   prompt: string;
-  /** `data:<mime>;base64,<payload>` — an image or an audio recording */
-  dataUrl: string;
-  /** which media types the caller accepts, guarding against a mislabelled blob */
-  accept: "image" | "audio";
+  /** `data:<mime>;base64,<payload>` — an image or an audio recording; omitted for plain text */
+  dataUrl?: string;
+  /** which media type the caller accepts, guarding against a mislabelled blob */
+  accept?: "image" | "audio";
   baseCurrency: string;
   today: string;
   members?: ExtractMember[];
@@ -27,21 +27,26 @@ export interface ExtractionRequest {
 /**
  * Run one extraction against the model chain and hand back sanitized rows.
  *
- * Shared by the image and the voice importer: both send a prompt plus one
- * inline media part and get the same JSON shape back, so the fallback walk, the
- * time budget and the re-validation live here exactly once.
+ * Shared by the image, voice and text importers: they send a prompt and at most
+ * one inline media part and get the same JSON shape back, so the fallback walk,
+ * the time budget and the re-validation live here exactly once.
  */
 export async function runExtraction(request: ExtractionRequest): Promise<ExtractionResult> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return { ok: false, error: "no_key" };
 
-  const pattern =
-    request.accept === "image"
-      ? /^data:(image\/[a-z0-9+.-]+);base64,(.+)$/s
-      : /^data:(audio\/[a-z0-9+.-]+);base64,(.+)$/s;
-  const match = pattern.exec(request.dataUrl);
-  if (!match) return { ok: false, error: "unreadable" };
-  const [, mimeType, base64] = match;
+  const parts: ({ text: string } | { inlineData: { mimeType: string; data: string } })[] = [
+    { text: request.prompt },
+  ];
+  if (request.accept) {
+    const pattern =
+      request.accept === "image"
+        ? /^data:(image\/[a-z0-9+.-]+);base64,(.+)$/s
+        : /^data:(audio\/[a-z0-9+.-]+);base64,(.+)$/s;
+    const match = pattern.exec(request.dataUrl ?? "");
+    if (!match) return { ok: false, error: "unreadable" };
+    parts.push({ inlineData: { mimeType: match[1], data: match[2] } });
+  }
 
   const withPeople = request.withPeople ?? false;
   let sawResponse = false;
@@ -60,14 +65,7 @@ export async function runExtraction(request: ExtractionRequest): Promise<Extract
           method: "POST",
           headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
           body: JSON.stringify({
-            contents: [
-              {
-                parts: [
-                  { text: request.prompt },
-                  { inlineData: { mimeType, data: base64 } },
-                ],
-              },
-            ],
+            contents: [{ parts }],
             generationConfig: {
               temperature: 0,
               maxOutputTokens: 4096,

@@ -94,7 +94,7 @@ export const en = {
   importTitle: "Capture expenses",
   importShort: "Scan",
   importIntro:
-    "Say what you spent, or upload a screenshot from your banking app or a photo of a receipt — the expenses are recognized automatically.",
+    "Type it, say it, or paste a screenshot from your banking app — the expenses are recognized automatically.",
   importPickImage: "Choose image",
   importTakePhoto: "Take photo",
   importAnalyzing: "Reading the image…",
@@ -104,7 +104,7 @@ export const en = {
   // Used as soon as a repayment is among them, where "expense" would be wrong.
   importFoundEntries: (n: number) => (n === 1 ? "1 entry found" : `${n} entries found`),
   importNothingFound: "No expenses found on this image.",
-  importUnavailable: "Image recognition isn't configured on this server.",
+  importUnavailable: "Automatic recognition isn't configured on this server.",
   importFailed: "The image couldn't be read. Try again or add the expense manually.",
   importOffline: "Recognizing expenses needs an internet connection.",
   importTooLarge: "This image is too large.",
@@ -124,6 +124,19 @@ export const en = {
       ? "1 of these might already be in the group."
       : `${n} of these might already be in the group.`,
   importDupDeselect: "Deselect them",
+  // Text and clipboard
+  textPlaceholder: "e.g. 24.50 groceries yesterday, Ben paid — or paste a message",
+  textSubmit: "Read this",
+  textAnalyzing: "Reading your text…",
+  textOriginal: "Your text",
+  textEdit: "Change text",
+  textNothingFound: "No expenses found in this text.",
+  textFailed: "The text couldn't be read. Try again or add the expense manually.",
+  textTooLong: "This text is too long.",
+  pasteClipboard: "Paste",
+  pasteHint: "Screenshot in your clipboard? Paste it and it starts right away.",
+  pasteEmpty: "There is nothing usable in your clipboard.",
+  pasteDenied: "Reading the clipboard isn't allowed here — press Ctrl+V (⌘V) instead.",
   // Voice message
   voiceRecord: "Record voice message",
   voiceIntroHint:
@@ -141,7 +154,6 @@ export const en = {
   voiceRetry: "Record again",
   voiceDenied: "Microphone access is off. Allow it in your browser settings and try again.",
   voiceUnsupported: "This browser can't record audio.",
-  voiceUnavailable: "Voice recognition isn't configured on this server.",
   voiceTooLong: "This recording is too long.",
   voiceFailed: "The recording couldn't be used. Please try again.",
   errImportNoneSelected: "Select at least one expense.",

@@ -1,6 +1,6 @@
 /** Downscale + JPEG-compress a picked image client-side so uploads stay small. */
 export async function resizeImage(
-  file: File,
+  file: Blob,
   maxSize: number,
   quality: number,
 ): Promise<string> {

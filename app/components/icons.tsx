@@ -194,6 +194,24 @@ export function IconStop(props: IconProps) {
   );
 }
 
+export function IconClipboard(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <rect x="5" y="4.5" width="14" height="16" rx="2.4" />
+      <path d="M9 4.5a3 3 0 0 1 6 0" />
+      <path d="M8.8 11.5h6.4M8.8 15.3h4.2" />
+    </Svg>
+  );
+}
+
+export function IconText(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M4.5 6.5h15M4.5 11h15M4.5 15.5h9.5M4.5 20h6" />
+    </Svg>
+  );
+}
+
 export function IconUser(props: IconProps) {
   return (
     <Svg {...props}>
