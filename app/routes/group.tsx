@@ -165,7 +165,7 @@ export default function GroupLayout({ loaderData }: Route.ComponentProps) {
 
   return (
     <div
-      className={`mx-auto min-h-dvh ${wide ? "max-w-4xl" : "max-w-lg"}`}
+      className={`min-h-page mx-auto ${wide ? "max-w-4xl" : "max-w-lg"}`}
       style={{ "--accent": accentStrong(snapshot.group.accentColor) } as React.CSSProperties}
     >
       {offline && (

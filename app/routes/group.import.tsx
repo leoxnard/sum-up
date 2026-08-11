@@ -537,8 +537,12 @@ export default function ImportExpenses() {
     navigate(`/g/${group.slug}`);
   }
 
+  // The action bar only exists once there are rows to confirm; before that the
+  // same clearance would just be dead space to scroll past.
+  const barVisible = rows !== null && rows.length > 0;
+
   return (
-    <main className="px-4 pb-32 pt-6">
+    <main className={`px-4 pt-6 ${barVisible ? "pb-action-bar" : "pb-16"}`}>
       <header className="animate-rise flex items-center gap-1">
         <Link to={`/g/${group.slug}`} aria-label={t.cancel} className="btn-icon -ml-2.5 shrink-0">
           <IconArrowLeft className="size-5" />
@@ -786,7 +790,7 @@ export default function ImportExpenses() {
         }}
       />
 
-      {rows !== null && rows.length > 0 && (
+      {barVisible && (
         <nav className="pointer-events-none fixed inset-x-0 bottom-0 z-10">
           <div aria-hidden className="h-10 bg-gradient-to-t from-[var(--page)] to-transparent" />
           <div className="pointer-events-auto mx-auto flex max-w-lg items-center gap-3 bg-[var(--page)] px-4 pb-[max(1rem,env(safe-area-inset-bottom))] lg:max-w-3xl">

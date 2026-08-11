@@ -24,7 +24,7 @@ export default function GroupOverview() {
   const myBalance = me ? (balances.get(me) ?? 0) : null;
 
   return (
-    <main className="px-4 pb-32 pt-6">
+    <main className="pb-action-bar px-4 pt-6">
       <header className="animate-rise flex items-center gap-1">
         <Link to="/" aria-label={t.backHome} className="btn-icon -ml-2.5 shrink-0">
           <IconArrowLeft className="size-5" />

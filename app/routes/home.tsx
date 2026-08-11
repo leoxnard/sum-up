@@ -68,7 +68,7 @@ export default function Home() {
   }
 
   return (
-    <main className="mx-auto flex min-h-dvh max-w-lg flex-col px-4 pb-16 pt-12">
+    <main className="min-h-page mx-auto flex max-w-lg flex-col px-4 pb-16 pt-12">
       <header className="animate-rise">
         <h1 className="text-4xl font-extrabold tracking-tight">
           Sum <span className="text-[var(--accent)]">Up</span>

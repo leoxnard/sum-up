@@ -55,11 +55,19 @@ html,
 body {
   background: var(--page);
   @apply text-neutral-900 dark:text-neutral-100;
-  padding: env(safe-area-inset-top) env(safe-area-inset-right)
-    env(safe-area-inset-bottom) env(safe-area-inset-left);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
   font-feature-settings: "cv05" 1, "ss01" 1;
+}
+
+/* The insets are spent once, on the body. Padding both html and body counted
+   every notch twice and made the document taller than the viewport, so every
+   screen scrolled a little even when it had nothing to scroll. The bottom
+   inset is left to whoever sits at the bottom edge — the floating action bars
+   pad themselves, and the plain screens end in a generous `pb-16`. */
+body {
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) 0
+    env(safe-area-inset-left);
 }
 
 /* Big, honest touch targets everywhere. */
@@ -77,6 +85,23 @@ textarea {
 }
 
 @layer components {
+  /* ---- Page frame -------------------------------------------------- */
+  /* A screen that fills the viewport: one viewport height minus the top inset
+     the body already spends. Plain `100dvh` overshoots by exactly that inset
+     and leaves the page scrollable by a sliver. */
+  .min-h-page {
+    min-height: calc(100dvh - env(safe-area-inset-top));
+  }
+
+  /* Clearance for a floating action bar so the last row isn't parked behind
+     it: the fade, the control, the bar's own bottom inset, plus a gap. */
+  .pb-action-bar {
+    padding-bottom: calc(
+      2.5rem + var(--control-h-lg) + max(1rem, env(safe-area-inset-bottom)) +
+        1rem
+    );
+  }
+
   /* ---- Surfaces ---------------------------------------------------- */
   .card {
     background: var(--surface);

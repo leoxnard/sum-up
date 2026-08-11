@@ -82,7 +82,7 @@ export default function NewGroup() {
   }
 
   return (
-    <main className="animate-rise mx-auto min-h-dvh max-w-lg px-4 pb-16 pt-8">
+    <main className="animate-rise min-h-page mx-auto max-w-lg px-4 pb-16 pt-8">
       <header className="flex items-center justify-between">
         <h1 className="text-2xl font-bold tracking-tight">{t.createGroup}</h1>
         <Link to="/" className="btn btn-ghost -mr-3">{t.cancel}</Link>
