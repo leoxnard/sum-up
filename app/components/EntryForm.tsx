@@ -9,7 +9,7 @@ import { findDuplicates } from "../lib/duplicates";
 import { DuplicateNotice } from "./DuplicateWarning";
 import { IconCamera, IconSparkles, IconTrash } from "./icons";
 import { categoryLabel } from "../lib/i18n";
-import { formatCents, parseAmountToCents, toBaseCents } from "../lib/money";
+import { cleanAmountInput, formatCents, parseAmountToCents, toBaseCents } from "../lib/money";
 import { computeShares, type SplitInput } from "../lib/split";
 import { submitOp } from "../lib/client/outbox";
 import type { CategoryKey, Entry, EntryKind, GroupSnapshot, SplitMode, SyncOp } from "../lib/types";
@@ -315,6 +315,16 @@ export function EntryForm({ snapshot, kind, me, entry }: Props) {
                   rebalance(current, parseAmountToCents(e.target.value), mode),
                 );
               }}
+              onPaste={(e) => {
+                // "12,50 €" out of a banking app or a chat has to land as an
+                // amount, not as text the field then refuses to parse.
+                const text = e.clipboardData.getData("text");
+                if (!text) return;
+                e.preventDefault();
+                const cleaned = cleanAmountInput(text);
+                setAmountRaw(cleaned);
+                setRows((current) => rebalance(current, parseAmountToCents(cleaned), mode));
+              }}
               inputMode="decimal"
               placeholder="0.00"
               className="input text-lg font-semibold tabular-nums"
@@ -438,6 +448,22 @@ export function EntryForm({ snapshot, kind, me, entry }: Props) {
                             ),
                           )
                         }
+                        onPaste={(e) => {
+                          const text = e.clipboardData.getData("text");
+                          if (!text) return;
+                          e.preventDefault();
+                          setRows(
+                            rebalance(
+                              new Map(rows).set(member.id, {
+                                ...row,
+                                raw: cleanAmountInput(text),
+                              }),
+                              amountCents,
+                              mode,
+                              member.id,
+                            ),
+                          );
+                        }}
                         inputMode="decimal"
                         placeholder={mode === "shares" ? "1" : mode === "percent" ? "0" : "0.00"}
                         className="input h-9 w-20 bg-[var(--surface-sunken)] px-2.5 text-right text-sm tabular-nums"

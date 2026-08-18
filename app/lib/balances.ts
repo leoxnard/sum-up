@@ -76,31 +76,67 @@ export function suggestSettlement(balances: Balances): SettleTransfer[] {
   return transfers;
 }
 
+/**
+ * One expense behind a stats total, with the amount that actually flowed into
+ * that total — the full converted amount for "paid", the member's own share for
+ * "consumed". Kept alongside the sums so the stats screen can unfold a row
+ * without recomputing the split.
+ */
+export interface StatEntry {
+  entry: Entry;
+  amountBase: number;
+}
+
+export interface MemberStats {
+  paid: number;
+  owedShare: number;
+  paidEntries: StatEntry[];
+  shareEntries: StatEntry[];
+}
+
 /** Per-member totals for the stats screen, in base cents. */
 export function computeMemberStats(snapshot: GroupSnapshot) {
-  const stats = new Map(
-    snapshot.members.map((m) => [m.id, { paid: 0, owedShare: 0 }]),
+  const stats = new Map<string, MemberStats>(
+    snapshot.members.map((m) => [
+      m.id,
+      { paid: 0, owedShare: 0, paidEntries: [], shareEntries: [] },
+    ]),
   );
   for (const entry of snapshot.entries) {
     if (entry.kind !== "expense") continue;
     const amountBase = toBaseCents(entry.amountCents, entry.exchangeRate);
     const payer = stats.get(entry.payerId);
-    if (payer) payer.paid += amountBase;
+    if (payer) {
+      payer.paid += amountBase;
+      payer.paidEntries.push({ entry, amountBase });
+    }
     for (const [i, cents] of shareCentsInBase(entry, amountBase).entries()) {
       const s = stats.get(entry.shares[i].memberId);
-      if (s) s.owedShare += cents;
+      if (s) {
+        s.owedShare += cents;
+        s.shareEntries.push({ entry, amountBase: cents });
+      }
     }
   }
   return stats;
 }
 
+export interface CategoryStats {
+  total: number;
+  entries: StatEntry[];
+}
+
 /** Per-category totals (expenses only), in base cents. */
 export function computeCategoryStats(snapshot: GroupSnapshot) {
-  const totals = new Map<string, number>();
+  const totals = new Map<string, CategoryStats>();
   for (const entry of snapshot.entries) {
     if (entry.kind !== "expense") continue;
     const key = entry.category ?? "other";
-    totals.set(key, (totals.get(key) ?? 0) + toBaseCents(entry.amountCents, entry.exchangeRate));
+    const amountBase = toBaseCents(entry.amountCents, entry.exchangeRate);
+    const stats = totals.get(key) ?? { total: 0, entries: [] };
+    stats.total += amountBase;
+    stats.entries.push({ entry, amountBase });
+    totals.set(key, stats);
   }
   return totals;
 }

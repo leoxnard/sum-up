@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { distributeByWeights, parseAmountToCents, toBaseCents } from "./money";
+import { cleanAmountInput, distributeByWeights, parseAmountToCents, toBaseCents } from "./money";
 
 describe("parseAmountToCents", () => {
   it.each([
@@ -78,5 +78,27 @@ describe("distributeByWeights", () => {
       }
       expect(parts.every((p) => Number.isInteger(p) && p >= 0)).toBe(true);
     }
+  });
+});
+
+describe("cleanAmountInput", () => {
+  it.each([
+    ["€ 12,50", "12,50"],
+    ["12.50 EUR", "12.50"],
+    ["-3,20 €", "-3,20"],
+    ["CHF 1'234.50", "1234.50"],
+    ["1 234,50 €", "1234,50"],
+    ["Rechnung: 24,50", "24,50"],
+    ["12,50.", "12,50"],
+  ])("cleans %j to %j", (input, expected) => {
+    expect(cleanAmountInput(input)).toBe(expected);
+  });
+
+  it("leaves text without a number alone", () => {
+    expect(cleanAmountInput("  abc ")).toBe("abc");
+  });
+
+  it("produces something parseAmountToCents accepts", () => {
+    expect(parseAmountToCents(cleanAmountInput("€ 1.234,56"))).toBe(123456);
   });
 });

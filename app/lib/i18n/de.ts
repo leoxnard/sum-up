@@ -192,6 +192,7 @@ export const de: Dictionary = {
   statsShare: "Verbraucht pro Person",
   statsCategories: "Nach Kategorie",
   statsTotal: "Gesamtausgaben",
+  statsRowEmpty: "Hier sind noch keine Ausgaben drin.",
   // Categories
   catFood: "Essen & Trinken",
   catGroceries: "Einkäufe",

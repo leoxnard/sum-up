@@ -71,6 +71,20 @@ textarea {
   touch-action: manipulation;
 }
 
+/* Text fields must keep the platform's long-press callout — without this,
+   iOS swallows the "Paste" bubble and an amount can only ever be typed. */
+input,
+textarea {
+  -webkit-user-select: text;
+  user-select: text;
+  -webkit-touch-callout: default;
+}
+
+/* Safari still draws its own disclosure triangle even with list-style: none. */
+summary::-webkit-details-marker {
+  display: none;
+}
+
 :focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
@@ -132,10 +146,27 @@ textarea {
   }
 
   /* Date inputs keep the native picker but shed the platform chrome that
-     makes them a different height from every other field. */
+     makes them a different height from every other field. Mobile WebKit lays
+     the value out at the top of the box instead of centring it, so the field
+     is a flex line box and the value itself gets its margins stripped. */
   input[type="date"].input {
     -webkit-appearance: none;
     min-height: var(--control-h);
+    display: flex;
+    align-items: center;
+    line-height: normal;
+  }
+
+  input[type="date"].input::-webkit-date-and-time-value {
+    margin: 0;
+    text-align: left;
+    line-height: normal;
+  }
+
+  input[type="date"].input::-webkit-datetime-edit {
+    display: flex;
+    align-items: center;
+    padding: 0;
   }
 
   input[type="date"].input::-webkit-calendar-picker-indicator {

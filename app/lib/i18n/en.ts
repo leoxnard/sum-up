@@ -185,6 +185,7 @@ export const en = {
   statsShare: "Consumed per person",
   statsCategories: "By category",
   statsTotal: "Total spent",
+  statsRowEmpty: "No expenses in here yet.",
   // Categories
   catFood: "Food & drinks",
   catGroceries: "Groceries",

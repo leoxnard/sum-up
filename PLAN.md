@@ -132,6 +132,7 @@ Agreed in a grilling session on 2026-07-18; this file is the spec of record.
 - `/g/:slug` — group overview: your balance, all balances, entry list, "+"
 - `/g/:slug/new-expense`, `/g/:slug/new-payment`, `/g/:slug/entry/:id` (edit)
 - `/g/:slug/settle` — settlement suggestions, one-tap record
-- `/g/:slug/stats` — per-member and per-category totals
+- `/g/:slug/stats` — per-member and per-category totals; every row unfolds into
+  the expenses behind it
 - `/g/:slug/settings` — rename, accent color, members, language, CSV export, delete
 - `/g/:slug/export.csv`, `/g/:slug/photo/:photoId`, `/api/rates`

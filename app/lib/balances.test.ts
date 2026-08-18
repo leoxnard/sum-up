@@ -241,12 +241,31 @@ describe("stats", () => {
 
   it("counts paid and owed per member, ignoring payments", () => {
     const stats = computeMemberStats(data);
-    expect(stats.get("m0")).toEqual({ paid: 1000, owedShare: 400 });
-    expect(stats.get("m1")).toEqual({ paid: 0, owedShare: 600 });
+    expect(stats.get("m0")).toMatchObject({ paid: 1000, owedShare: 400 });
+    expect(stats.get("m1")).toMatchObject({ paid: 0, owedShare: 600 });
+  });
+
+  it("lists the expenses behind each member total", () => {
+    const stats = computeMemberStats(data);
+    // The payer sees the full converted amount, everyone sees their own share.
+    expect(stats.get("m0")!.paidEntries).toEqual([
+      { entry: data.entries[0], amountBase: 1000 },
+    ]);
+    expect(stats.get("m1")!.paidEntries).toEqual([]);
+    expect(stats.get("m1")!.shareEntries).toEqual([
+      { entry: data.entries[0], amountBase: 600 },
+    ]);
   });
 
   it("buckets uncategorized expenses as other", () => {
-    expect(computeCategoryStats(data).get("food")).toBe(1000);
-    expect(computeCategoryStats(snapshot(1, [expense({ id: "e", payerId: "m0", amountCents: 500 })])).get("other")).toBe(500);
+    expect(computeCategoryStats(data).get("food")).toEqual({
+      total: 1000,
+      entries: [{ entry: data.entries[0], amountBase: 1000 }],
+    });
+    expect(
+      computeCategoryStats(snapshot(1, [expense({ id: "e", payerId: "m0", amountCents: 500 })])).get(
+        "other",
+      )?.total,
+    ).toBe(500);
   });
 });

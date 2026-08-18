@@ -28,6 +28,19 @@ export function parseAmountToCents(raw: string): number | null {
   return Math.round(Number(s) * 100);
 }
 
+/**
+ * Pull the number out of pasted text like "€ 12,50", "12.50 EUR" or "-3,20 €".
+ * What lands in the clipboard from a banking app or a chat message almost never
+ * is a bare number, and dropping it into the field unchanged made the amount
+ * unparseable — the paste looked like it had been swallowed. Returns the text
+ * unchanged when there is no number in it, so garbage still shows up as typed.
+ */
+export function cleanAmountInput(raw: string): string {
+  const match = raw.match(/-?\d[\d.,\s ']*/);
+  if (!match) return raw.trim();
+  return match[0].replace(/[\s ']/g, "").replace(/[.,]$/, "");
+}
+
 /** Convert original-currency cents to base-currency cents with the frozen rate. */
 export function toBaseCents(cents: number, exchangeRate: number): number {
   return Math.round(cents * exchangeRate);
