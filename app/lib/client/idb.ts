@@ -30,6 +30,27 @@ function db() {
       database.createObjectStore("outbox", { autoIncrement: true });
       database.createObjectStore("deviceGroups", { keyPath: "slug" });
     },
+    // An upgrade cannot start while another tab still holds the database open,
+    // and `openDB` then simply never settles. Every caller waits on the same
+    // promise, so a single stale tab would freeze the group list and silently
+    // swallow "create group" — with no error anywhere. Closing our handle when
+    // someone else needs to upgrade is what breaks that deadlock.
+    blocked() {
+      console.warn("sumup: IndexedDB upgrade blocked by another open tab");
+    },
+    blocking() {
+      void dbPromise?.then((database) => database.close()).catch(() => {});
+      dbPromise = null;
+    },
+    terminated() {
+      dbPromise = null;
+    },
+  }).catch((error: unknown) => {
+    // Never keep a rejected promise around: one transient failure (private
+    // mode, quota, a killed connection) would otherwise disable local storage
+    // for the rest of the session, and every retry would fail the same way.
+    dbPromise = null;
+    throw error;
   });
   return dbPromise;
 }
