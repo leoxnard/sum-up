@@ -9,6 +9,7 @@ import {
   useRevalidator,
   useRouteError,
 } from "react-router";
+import type { ShouldRevalidateFunctionArgs } from "react-router";
 import { useEffect, useRef, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 
@@ -100,6 +101,31 @@ export async function clientLoader({ serverLoader, params }: Route.ClientLoaderA
   return { snapshot: overlaid, me, offline, pending: ops.length, fromServer: false };
 }
 
+/**
+ * A tab switch is a navigation inside the same group, and a group's data cannot
+ * change because you looked at a different tab. Without this, React Router's
+ * single fetch reloads the group (and root) loader on every tab change — a
+ * network round trip standing between the tap and the new screen, in an app
+ * whose whole point is working offline.
+ *
+ * Everything that *can* change the data revalidates explicitly: the outbox
+ * notifies on every queued and flushed write, the doorbell fires on remote
+ * changes, and focus/reconnect refresh. Those keep the same URL, which is what
+ * the first branch lets through.
+ */
+export function shouldRevalidate({
+  currentUrl,
+  nextUrl,
+  currentParams,
+  nextParams,
+  formMethod,
+  defaultShouldRevalidate,
+}: ShouldRevalidateFunctionArgs) {
+  if (currentUrl.pathname === nextUrl.pathname) return defaultShouldRevalidate;
+  if (formMethod && formMethod !== "GET") return true;
+  return currentParams.slug !== nextParams.slug;
+}
+
 export interface GroupContext {
   snapshot: GroupSnapshot;
   me: string | null;
@@ -114,7 +140,13 @@ export function useGroup(): GroupContext {
 export default function GroupLayout({ loaderData }: Route.ComponentProps) {
   const { snapshot, offline, pending, fromServer } = loaderData;
   const { t } = useT();
-  const revalidator = useRevalidator();
+  // Take the function, not the hook's object. `useRevalidator()` memoizes on
+  // its own revalidation state, so the object identity changes the moment a
+  // revalidation starts — an effect that depends on it tears down and re-runs
+  // mid-flight, kicks off another revalidation, and never stops. That loop
+  // re-fetched the group on repeat and re-warmed every route chunk with it,
+  // which is what made the whole screen drop clicks. `revalidate` is stable.
+  const { revalidate } = useRevalidator();
   const supabaseConfig = useSupabaseConfig();
   const [claimed, setClaimed] = useState(loaderData.me);
 
@@ -135,14 +167,14 @@ export default function GroupLayout({ loaderData }: Route.ComponentProps) {
   // Reconnect + focus + queued-write changes -> flush the outbox, refresh.
   useEffect(() => {
     const refresh = () => {
-      void flushOutbox().finally(() => revalidator.revalidate());
+      void flushOutbox().finally(() => revalidate());
     };
     const onVisible = () => {
       if (document.visibilityState === "visible") refresh();
     };
     window.addEventListener("online", refresh);
     document.addEventListener("visibilitychange", onVisible);
-    const unsubscribe = onOutboxChange(() => revalidator.revalidate());
+    const unsubscribe = onOutboxChange(() => revalidate());
     refresh(); // drain anything queued from a previous (possibly offline) session
     warmRouteChunks();
     return () => {
@@ -150,7 +182,7 @@ export default function GroupLayout({ loaderData }: Route.ComponentProps) {
       document.removeEventListener("visibilitychange", onVisible);
       unsubscribe();
     };
-  }, [revalidator]);
+  }, [revalidate]);
 
   // Realtime doorbell: a contentless ping on the group channel means "reload".
   useEffect(() => {
@@ -160,13 +192,13 @@ export default function GroupLayout({ loaderData }: Route.ComponentProps) {
     });
     const channel = client
       .channel(`group:${snapshot.group.slug}`)
-      .on("broadcast", { event: "changed" }, () => revalidator.revalidate())
+      .on("broadcast", { event: "changed" }, () => revalidate())
       .subscribe();
     return () => {
       void channel.unsubscribe();
       void client.removeAllChannels();
     };
-  }, [supabaseConfig, snapshot.group.slug, revalidator]);
+  }, [supabaseConfig, snapshot.group.slug, revalidate]);
 
   const context: GroupContext = { snapshot, me: claimed, offline, pending };
   const needsClaim = claimed === null && snapshot.members.length > 0;

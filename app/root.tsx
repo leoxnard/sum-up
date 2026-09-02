@@ -7,6 +7,7 @@ import {
   ScrollRestoration,
   useRouteLoaderData,
 } from "react-router";
+import type { ShouldRevalidateFunctionArgs } from "react-router";
 import { useEffect } from "react";
 
 import type { Route } from "./+types/root";
@@ -49,6 +50,21 @@ export function loader({ request }: Route.LoaderArgs) {
         ? { url: process.env.SUPABASE_URL, key: process.env.SUPABASE_ANON_KEY }
         : null,
   };
+}
+
+/**
+ * Root's data is the locale cookie and the Supabase config — neither changes
+ * because you navigated. Without this, single fetch reloads it on every client
+ * navigation, so even changing a tab hit the network. Same-URL calls still pass
+ * through, which is how switching the language (an explicit `revalidate()`)
+ * still takes effect.
+ */
+export function shouldRevalidate({
+  currentUrl,
+  nextUrl,
+  defaultShouldRevalidate,
+}: ShouldRevalidateFunctionArgs) {
+  return currentUrl.pathname === nextUrl.pathname ? defaultShouldRevalidate : false;
 }
 
 // Offline navigations can't reach the server loader; fall back to the last
