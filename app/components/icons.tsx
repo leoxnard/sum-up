@@ -347,3 +347,43 @@ export function IconTrash(props: IconProps) {
     </Svg>
   );
 }
+
+/* ---- Tab bar ------------------------------------------------------- */
+/* Deliberately flatter than the content icons: at 21px inside the capsule,
+   the detailed category glyphs turn to mush. */
+
+export function IconPie(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M12 3.6a8.4 8.4 0 1 0 8.4 8.4H12Z" />
+      <path d="M14.6 3.9a8.4 8.4 0 0 1 5.5 5.5h-5.5Z" />
+    </Svg>
+  );
+}
+
+export function IconList(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M4.5 6.5h15M4.5 11h15M4.5 15.5h9.5M4.5 20h6" />
+    </Svg>
+  );
+}
+
+export function IconBars(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M3.5 13.4a1.4 1.4 0 0 1 1.4-1.4h1.7a1.4 1.4 0 0 1 1.4 1.4v6.1H3.5Z" />
+      <path d="M9.8 9.4A1.4 1.4 0 0 1 11.2 8h1.7a1.4 1.4 0 0 1 1.4 1.4v10.1H9.8Z" />
+      <path d="M16 5.9a1.4 1.4 0 0 1 1.4-1.4h1.7a1.4 1.4 0 0 1 1.4 1.4v13.6H16Z" />
+    </Svg>
+  );
+}
+
+export function IconBackspace(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M8 4.5h10.5A2 2 0 0 1 20.5 6.5v11a2 2 0 0 1-2 2H8L2.5 12 8 4.5Z" />
+      <path d="M11 9.5l5 5M16 9.5l-5 5" />
+    </Svg>
+  );
+}

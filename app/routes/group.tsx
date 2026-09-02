@@ -1,14 +1,15 @@
 import {
   isRouteErrorResponse,
   Link,
+  NavLink,
   Outlet,
-  useMatches,
+  useLocation,
   useOutletContext,
   useParams,
   useRevalidator,
   useRouteError,
 } from "react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 
 import type { Route } from "./+types/group";
@@ -24,9 +25,19 @@ import { overlayOps } from "../lib/client/overlay";
 import { flushOutbox, onOutboxChange, pendingOps } from "../lib/client/outbox";
 import { readClaim, writeClaim } from "../lib/client/claim";
 import { warmRouteChunks } from "../lib/client/warm";
-import { accentStrong } from "../lib/accent";
+import { accentVars } from "../lib/accent";
 import { useSupabaseConfig, useT } from "../root";
+import {
+  IconAlert,
+  IconArrowLeft,
+  IconBars,
+  IconList,
+  IconPie,
+  IconPlus,
+  IconSliders,
+} from "../components/icons";
 import type { GroupSnapshot } from "../lib/types";
+import type { Dictionary } from "../lib/i18n/en";
 
 // A shared group link is a bearer credential — it must never end up in an index.
 export const meta: Route.MetaFunction = () => [
@@ -159,42 +170,170 @@ export default function GroupLayout({ loaderData }: Route.ComponentProps) {
 
   const context: GroupContext = { snapshot, me: claimed, offline, pending };
   const needsClaim = claimed === null && snapshot.members.length > 0;
-  // Every screen is a phone-width column except the ones that ask for room
-  // (`handle = { wide: true }`) — the image import needs two columns.
-  const wide = useMatches().some((match) => (match.handle as { wide?: boolean })?.wide);
+  const base = `/g/${snapshot.group.slug}`;
+
+  // The current child decides how the shell presents it: a tab sits inside the
+  // scrollable page, a sheet or a push panel floats above it.
+  const { pathname } = useLocation();
+  const rest = pathname.slice(base.length).replace(/^\//, "");
+  const kind = overlayKind(rest);
+  const tabIndex = TABS.findIndex((tab) => tab.path === rest);
+  const activeTab = tabIndex < 0 ? 0 : tabIndex;
+
+  // Which way the next tab panel flies in. Remembering the last index is the
+  // only way to tell "moved right along the bar" from "moved left".
+  const previousTab = useRef(activeTab);
+  const direction = activeTab >= previousTab.current ? 1 : -1;
+  useEffect(() => {
+    previousTab.current = activeTab;
+  }, [activeTab]);
 
   return (
-    <div
-      className={`mx-auto min-h-dvh ${wide ? "max-w-4xl" : "max-w-lg"}`}
-      style={{ "--accent": accentStrong(snapshot.group.accentColor) } as React.CSSProperties}
-    >
-      {offline && (
-        <div className="animate-slide-up bg-amber-100 px-4 py-2 text-center text-sm font-medium text-amber-900 dark:bg-amber-950 dark:text-amber-200">
-          {t.offlineBanner}
+    <div style={accentVars(snapshot.group.accentColor) as React.CSSProperties}>
+      {/* Sheets recess the whole app behind them; the scrim then dims what is
+          left visible around the sheet's rounded shoulders. */}
+      <div className="stack" data-recessed={kind === "sheet" || needsClaim}>
+        <div className="mx-auto min-h-dvh max-w-lg">
+          <header className="nav-bar" data-hidden={kind !== "tab" || needsClaim}>
+            <Link to="/" aria-label={t.backHome} className="glass-btn">
+              <IconArrowLeft className="size-4" />
+            </Link>
+            <span className="nav-title">{snapshot.group.name}</span>
+            <Link
+              to={`${base}/new-expense`}
+              aria-label={t.addExpense}
+              className="glass-btn glass-btn-accent"
+            >
+              <IconPlus className="size-[1.125rem]" />
+            </Link>
+          </header>
+
+          <SyncBanner offline={offline} pending={pending} t={t} />
+
+          {needsClaim ? (
+            <div className="px-5 pb-32" />
+          ) : (
+            <div
+              key={rest}
+              className="animate-tab px-5 pb-40"
+              data-dir={kind === "tab" ? direction : undefined}
+            >
+              {kind === "tab" && <Outlet context={context} />}
+            </div>
+          )}
         </div>
-      )}
-      {!offline && pending > 0 && (
-        <div className="animate-slide-up flex items-center justify-center gap-2 bg-[var(--surface-sunken)] px-4 py-1.5 text-center text-xs font-medium text-[var(--text-muted)]">
-          <span className="size-1.5 animate-pulse rounded-full bg-[var(--accent)]" />
-          {t.syncPending(pending)}
-        </div>
-      )}
-      {needsClaim ? (
-        <ClaimScreen
+      </div>
+
+      {kind !== "tab" && !needsClaim && <Outlet context={context} />}
+
+      {needsClaim && (
+        <ClaimSheet
           snapshot={snapshot}
           onClaim={(memberId) => {
             writeClaim(snapshot.group.id, memberId);
             setClaimed(memberId);
           }}
         />
-      ) : (
-        <Outlet context={context} />
       )}
+
+      <TabBar base={base} index={activeTab} hidden={kind !== "tab" || needsClaim} t={t} />
     </div>
   );
 }
 
-function ClaimScreen({
+/** The four tab-bar destinations, in bar order. */
+const TABS = [
+  { path: "", icon: IconPie, label: (t: Dictionary) => t.tabOverview },
+  { path: "activity", icon: IconList, label: (t: Dictionary) => t.tabActivity },
+  { path: "stats", icon: IconBars, label: (t: Dictionary) => t.tabStats },
+  { path: "settings", icon: IconSliders, label: (t: Dictionary) => t.tabSettings },
+] as const;
+
+const SHEET_ROUTES = ["new-expense", "new-payment", "import"];
+
+function overlayKind(rest: string): "tab" | "sheet" | "push" {
+  if (SHEET_ROUTES.includes(rest)) return "sheet";
+  if (rest === "settle" || rest.startsWith("entry/")) return "push";
+  return "tab";
+}
+
+function TabBar({
+  base,
+  index,
+  hidden,
+  t,
+}: {
+  base: string;
+  index: number;
+  hidden: boolean;
+  t: Dictionary;
+}) {
+  return (
+    <nav
+      className="tab-bar mx-auto max-w-lg"
+      data-hidden={hidden}
+      style={{ "--tab-count": TABS.length, "--tab-index": index } as React.CSSProperties}
+    >
+      <span className="tab-thumb" aria-hidden />
+      {TABS.map((tab, i) => {
+        const Glyph = tab.icon;
+        return (
+          <NavLink
+            key={tab.path}
+            to={tab.path ? `${base}/${tab.path}` : base}
+            end={tab.path === ""}
+            // The thumb already marks the tab, but only aria-current styles it,
+            // and NavLink's own match would light up "Overview" on every route.
+            aria-current={i === index ? "page" : undefined}
+            className="tab-item"
+          >
+            <Glyph className="size-[1.3125rem]" width={1.9} />
+            <span>{tab.label(t)}</span>
+          </NavLink>
+        );
+      })}
+    </nav>
+  );
+}
+
+/** Offline and "not synced yet" are the only states worth interrupting for. */
+function SyncBanner({
+  offline,
+  pending,
+  t,
+}: {
+  offline: boolean;
+  pending: number;
+  t: Dictionary;
+}) {
+  if (offline) {
+    return (
+      <div className="animate-slide-up px-5 pb-1">
+        <p className="banner-warn">
+          <IconAlert className="size-[1.0625rem] shrink-0" />
+          {t.offlineBanner}
+        </p>
+      </div>
+    );
+  }
+  if (pending === 0) return null;
+  return (
+    <div className="animate-slide-up px-5 pb-1">
+      <p className="inline-flex items-center gap-[0.4375rem] rounded-full border border-[var(--glass-border)] bg-[var(--glass-raised)] px-3 py-[0.4375rem] text-[0.71875rem] font-semibold text-[var(--text-2)]">
+        <span className="animate-pulse-soft size-1.5 rounded-full bg-[var(--accent)]" />
+        {t.syncPending(pending)}
+      </p>
+    </div>
+  );
+}
+
+/**
+ * Picking who you are is the one thing a fresh device must do before it can
+ * show a balance, so it arrives as a sheet you can't miss. It has no route of
+ * its own: the choice is device-local, and a URL for it would be meaningless
+ * on anyone else's phone.
+ */
+function ClaimSheet({
   snapshot,
   onClaim,
 }: {
@@ -203,29 +342,40 @@ function ClaimScreen({
 }) {
   const { t } = useT();
   return (
-    <main className="animate-rise px-4 py-10">
-      <h1 className="text-2xl font-bold tracking-tight">{snapshot.group.name}</h1>
-      <h2 className="mt-7 text-lg font-semibold">{t.whoAreYou}</h2>
-      <p className="mt-1 text-sm text-[var(--text-muted)]">{t.whoAreYouHint}</p>
-      <div className="stagger mt-6 flex flex-col gap-2">
-        {snapshot.members.map((member, index) => (
+    <>
+      <div className="sheet-scrim" aria-hidden />
+      <section
+        role="dialog"
+        aria-modal="true"
+        aria-label={t.whoAreYou}
+        className="sheet mx-auto max-w-lg"
+      >
+        <span className="sheet-grip" aria-hidden />
+        <div className="sheet-body pt-4">
+          <h2 className="text-2xl font-extrabold tracking-tight">{t.whoAreYou}</h2>
+          <p className="mt-1.5 text-[0.8125rem] leading-relaxed text-[var(--text-2)]">
+            {t.whoAreYouHint}
+          </p>
+          <div className="glass glass-list mt-4">
+            {snapshot.members.map((member) => (
+              <button
+                key={member.id}
+                onClick={() => onClaim(member.id)}
+                className="glass-row pressable text-[0.96875rem] font-semibold"
+              >
+                {member.name}
+              </button>
+            ))}
+          </div>
           <button
-            key={member.id}
-            onClick={() => onClaim(member.id)}
-            style={{ "--i": index } as React.CSSProperties}
-            className="card pressable px-4 py-3.5 text-left text-base font-medium"
+            onClick={() => onClaim("")}
+            className="mt-3.5 px-1 py-1 text-sm font-semibold text-[var(--text-2)]"
           >
-            {member.name}
+            {t.notInList}
           </button>
-        ))}
-        <button
-          onClick={() => onClaim("")}
-          className="btn btn-ghost mt-2 self-start -ml-3"
-        >
-          {t.notInList}
-        </button>
-      </div>
-    </main>
+        </div>
+      </section>
+    </>
   );
 }
 
@@ -244,7 +394,7 @@ export function ErrorBoundary() {
   return (
     <main className="animate-rise mx-auto max-w-md px-4 pt-16 text-center">
       <h1 className="text-xl font-bold">{t.notFound}</h1>
-      <p className="mt-2 text-[var(--text-muted)]">{t.groupNotFound}</p>
+      <p className="mt-2 text-[var(--text-2)]">{t.groupNotFound}</p>
       <Link to="/" className="btn btn-outline mt-6">
         {t.backHome}
       </Link>

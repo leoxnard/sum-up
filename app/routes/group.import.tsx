@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Link, useFetcher, useNavigate } from "react-router";
+import { Link, useFetcher } from "react-router";
 
 import type { Route } from "./+types/group.import";
 import { useGroup } from "./group";
@@ -25,10 +25,10 @@ import {
 } from "../lib/client/audio";
 import { submitOp } from "../lib/client/outbox";
 import { DuplicateLine } from "../components/DuplicateWarning";
+import { Sheet, useDismiss } from "../components/overlays";
 import {
   CategoryIcon,
   IconAlert,
-  IconArrowLeft,
   IconCalendar,
   IconArrowRight,
   IconChevronDown,
@@ -44,9 +44,6 @@ import {
 } from "../components/icons";
 import { MAX_TEXT_LENGTH } from "../lib/extract";
 import type { CategoryKey, SyncOp } from "../lib/types";
-
-/** Widens the group shell — the review needs two columns on a big screen. */
-export const handle = { wide: true };
 
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -136,9 +133,19 @@ interface Row {
 }
 
 export default function ImportExpenses() {
+  const { snapshot } = useGroup();
+  const { t } = useT();
+  return (
+    <Sheet backTo={`/g/${snapshot.group.slug}`} label={t.importTitle} wide>
+      <CaptureFields />
+    </Sheet>
+  );
+}
+
+function CaptureFields() {
   const { snapshot, me, offline } = useGroup();
   const { t, intl } = useT();
-  const navigate = useNavigate();
+  const dismiss = useDismiss();
   const fetcher = useFetcher<typeof action>();
   const group = snapshot.group;
   const members = snapshot.members;
@@ -534,20 +541,42 @@ export default function ImportExpenses() {
     }
     setSaving(true);
     for (const op of ops) await submitOp(op);
-    navigate(`/g/${group.slug}`);
+    dismiss();
   }
 
   return (
-    <main className="px-4 pb-32 pt-6">
-      <header className="animate-rise flex items-center gap-1">
-        <Link to={`/g/${group.slug}`} aria-label={t.cancel} className="btn-icon -ml-2.5 shrink-0">
-          <IconArrowLeft className="size-5" />
-        </Link>
-        <h1 className="min-w-0 flex-1 truncate text-xl font-bold tracking-tight">
+    <>
+      <header className="sheet-head">
+        <button
+          type="button"
+          onClick={dismiss}
+          className="-ml-1 shrink-0 px-1 py-1 text-[0.9375rem] font-semibold text-[var(--text-2)]"
+        >
+          {t.cancel}
+        </button>
+        <h2 className="min-w-0 flex-1 truncate text-center text-base font-bold">
           {t.importTitle}
-        </h1>
+        </h2>
+        <span className="min-w-[3.25rem]" />
       </header>
 
+      {/* The other half of the switch in the expense sheet. Once the model has
+          answered, the review owns the sheet and switching away would throw it. */}
+      {rows === null && (
+        <div className="segment mx-5 mt-3.5 shrink-0 grid-cols-2">
+          <Link
+            to={`/g/${group.slug}/new-expense`}
+            className="segment-item text-center"
+          >
+            {t.modeManual}
+          </Link>
+          <span aria-current="page" className="segment-item text-center">
+            {t.modeAI}
+          </span>
+        </div>
+      )}
+
+      <div className="sheet-body pt-1">
       {rows === null ? (
         <PickScreen
           analyzing={analyzing}
@@ -573,7 +602,7 @@ export default function ImportExpenses() {
               <button
                 type="button"
                 onClick={() => setZoomed((z) => !z)}
-                className="card block w-full overflow-hidden bg-[var(--surface-sunken)] p-0"
+                className="card block w-full overflow-hidden bg-[var(--field)] p-0"
               >
                 <img
                   src={image ?? undefined}
@@ -584,24 +613,24 @@ export default function ImportExpenses() {
                 />
               </button>
             ) : source === "text" ? (
-              <div className="card bg-[var(--surface-sunken)]">
+              <div className="card bg-[var(--field)]">
                 <p className="max-h-56 overflow-y-auto whitespace-pre-wrap text-sm leading-relaxed md:max-h-[50vh]">
                   {submittedText}
                 </p>
               </div>
             ) : (
-              <div className="card bg-[var(--surface-sunken)]">
+              <div className="card bg-[var(--field)]">
                 {audioUrl && (
                   <audio src={audioUrl} controls className="w-full" aria-label={t.voiceRecording} />
                 )}
                 {/* What the model heard. Seeing it is how a misread amount gets
                     explained instead of just looking wrong. */}
-                <p className="mt-3 max-h-56 overflow-y-auto whitespace-pre-wrap text-sm leading-relaxed text-[var(--text-muted)] md:max-h-[50vh]">
+                <p className="mt-3 max-h-56 overflow-y-auto whitespace-pre-wrap text-sm leading-relaxed text-[var(--text-2)] md:max-h-[50vh]">
                   {transcript || t.voiceNoTranscript}
                 </p>
               </div>
             )}
-            <figcaption className="mt-1.5 flex items-center justify-between px-1 text-xs text-[var(--text-muted)]">
+            <figcaption className="mt-1.5 flex items-center justify-between px-1 text-xs text-[var(--text-2)]">
               <span>
                 {source === "image"
                   ? t.importOriginal
@@ -637,7 +666,7 @@ export default function ImportExpenses() {
 
           <section className="mt-5 md:mt-0">
             {rows.length === 0 ? (
-              <div className="card px-4 py-8 text-center text-sm text-[var(--text-muted)]">
+              <div className="card px-4 py-8 text-center text-sm text-[var(--text-2)]">
                 <p>
                   {source === "image"
                     ? t.importNothingFound
@@ -664,7 +693,7 @@ export default function ImportExpenses() {
                     {selected.length < rows.length ? t.importSelectAll : t.importDeselectAll}
                   </button>
                 </div>
-                <p className="mt-1 text-xs text-[var(--text-muted)]">{t.importCheckHint}</p>
+                <p className="mt-1 text-xs text-[var(--text-2)]">{t.importCheckHint}</p>
 
                 {flaggedSelected.length > 0 && (
                   <div className="animate-pop mt-3 flex items-center gap-2 rounded-[var(--radius-control)] border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-700 dark:text-amber-400">
@@ -691,9 +720,9 @@ export default function ImportExpenses() {
                 )}
 
                 {members.length > 1 && (
-                  <label className="mt-3 flex items-center gap-2 rounded-[var(--radius-control)] bg-[var(--surface-sunken)] px-3 py-2 text-sm">
-                    <IconUser className="size-4 shrink-0 text-[var(--text-muted)]" />
-                    <span className="shrink-0 text-[var(--text-muted)]">{t.importPayerForAll}</span>
+                  <label className="mt-3 flex items-center gap-2 rounded-[var(--radius-control)] bg-[var(--field)] px-3 py-2 text-sm">
+                    <IconUser className="size-4 shrink-0 text-[var(--text-2)]" />
+                    <span className="shrink-0 text-[var(--text-2)]">{t.importPayerForAll}</span>
                     <select
                       value={rows.every((r) => r.payerId === rows[0].payerId) ? rows[0].payerId : ""}
                       onChange={(e) =>
@@ -734,9 +763,9 @@ export default function ImportExpenses() {
                     {foreignCurrencies.map((currency) => (
                       <label
                         key={currency}
-                        className="flex items-center gap-2 rounded-[var(--radius-control)] bg-[var(--surface-sunken)] px-3 py-2 text-sm"
+                        className="flex items-center gap-2 rounded-[var(--radius-control)] bg-[var(--field)] px-3 py-2 text-sm"
                       >
-                        <span className="shrink-0 text-[var(--text-muted)]">
+                        <span className="shrink-0 text-[var(--text-2)]">
                           {t.exchangeRateHint(currency, base)}
                         </span>
                         <input
@@ -760,7 +789,7 @@ export default function ImportExpenses() {
                 )}
 
                 {source === "image" && selected.length === 1 && image && (
-                  <p className="mt-3 text-xs text-[var(--text-muted)]">{t.importPhotoAttached}</p>
+                  <p className="mt-3 text-xs text-[var(--text-2)]">{t.importPhotoAttached}</p>
                 )}
               </>
             )}
@@ -786,13 +815,14 @@ export default function ImportExpenses() {
         }}
       />
 
+      </div>
+
       {rows !== null && rows.length > 0 && (
-        <nav className="pointer-events-none fixed inset-x-0 bottom-0 z-10">
-          <div aria-hidden className="h-10 bg-gradient-to-t from-[var(--page)] to-transparent" />
-          <div className="pointer-events-auto mx-auto flex max-w-lg items-center gap-3 bg-[var(--page)] px-4 pb-[max(1rem,env(safe-area-inset-bottom))] lg:max-w-3xl">
+        <div className="shrink-0 border-t border-[var(--sheet-border)] px-5 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3">
+          <div className="flex items-center gap-3">
             {/* The button already carries the count — on a phone the label would
                 only squeeze the total out of it. */}
-            <span className="hidden shrink-0 text-xs text-[var(--text-muted)] sm:block">
+            <span className="hidden shrink-0 text-xs text-[var(--text-2)] sm:block">
               {t.importSelected(selected.length, rows.length)}
             </span>
             <button
@@ -803,14 +833,14 @@ export default function ImportExpenses() {
               {hasPayment
                 ? t.importAddEntries(selected.length)
                 : t.importAddSelected(selected.length)}
-              <span className="ml-1 text-sm font-normal opacity-80 tabular-nums">
+              <span className="num ml-1 text-sm font-normal opacity-80">
                 {selectedTotalLabel(selected, base, rateFor, intl)}
               </span>
             </button>
           </div>
-        </nav>
+        </div>
       )}
-    </main>
+    </>
   );
 }
 
@@ -902,7 +932,7 @@ function PickScreen({
           <IconStop className="relative size-9" />
         </button>
         <p className="mt-6 text-2xl font-semibold tabular-nums">{clock(elapsed)}</p>
-        <p className="mt-1 text-sm text-[var(--text-muted)]">
+        <p className="mt-1 text-sm text-[var(--text-2)]">
           {left <= 15 ? t.voiceTimeLeft(Math.ceil(left)) : t.voiceRecordingHint}
         </p>
         <button
@@ -945,7 +975,7 @@ function PickScreen({
               ? t.voiceAnalyzing
               : t.textAnalyzing}
         </p>
-        <p className="mt-1 text-sm text-[var(--text-muted)]">{t.importAnalyzingHint}</p>
+        <p className="mt-1 text-sm text-[var(--text-2)]">{t.importAnalyzingHint}</p>
       </div>
     );
   }
@@ -955,7 +985,7 @@ function PickScreen({
       <span className="glyph mx-auto mb-4 flex size-14 items-center justify-center">
         <IconSparkles className="size-7 text-[var(--accent)]" />
       </span>
-      <p className="text-sm text-[var(--text-muted)]">{t.importIntro}</p>
+      <p className="text-sm text-[var(--text-2)]">{t.importIntro}</p>
       {error && (
         <p className="animate-pop mt-4 rounded-xl bg-rose-500/10 px-3.5 py-2.5 text-sm font-medium text-rose-600 dark:text-rose-400">
           {error}
@@ -977,7 +1007,7 @@ function PickScreen({
           maxLength={MAX_TEXT_LENGTH}
           placeholder={t.textPlaceholder}
           aria-label={t.textOriginal}
-          className="w-full resize-none bg-transparent px-1.5 py-1 text-sm outline-none placeholder:text-[var(--text-muted)]"
+          className="w-full resize-none bg-transparent px-1.5 py-1 text-sm outline-none placeholder:text-[var(--text-2)]"
         />
         <div className="flex items-center gap-2">
           {/* Always rendered: whether the browser will hand over the clipboard is
@@ -1003,7 +1033,7 @@ function PickScreen({
           </button>
         </div>
       </div>
-      <p className="mt-2 text-xs text-[var(--text-muted)]">{t.pasteHint}</p>
+      <p className="mt-2 text-xs text-[var(--text-2)]">{t.pasteHint}</p>
 
       <div className="mt-5 flex flex-col gap-2.5">
         <button onClick={onStartRecording} className="btn btn-primary btn-lg w-full">
@@ -1015,7 +1045,7 @@ function PickScreen({
           {t.importPickImage}
         </button>
       </div>
-      <p className="mt-3 text-xs text-[var(--text-muted)]">{t.voiceIntroHint}</p>
+      <p className="mt-3 text-xs text-[var(--text-2)]">{t.voiceIntroHint}</p>
     </div>
   );
 }
@@ -1071,9 +1101,9 @@ function ExpenseRow({
             {/* A repayment has no title and no category — what it is, is who it
                 went to, so the recipient takes the title's place. */}
             <span className="pill px-1.5">
-              <IconExchange className="size-[1.05rem] text-[var(--text-muted)]" />
+              <IconExchange className="size-[1.05rem] text-[var(--text-2)]" />
             </span>
-            <IconArrowRight className="size-3.5 shrink-0 text-[var(--text-muted)]" />
+            <IconArrowRight className="size-3.5 shrink-0 text-[var(--text-2)]" />
             <select
               value={row.recipientId}
               onChange={(e) => onChange({ recipientId: e.target.value })}
@@ -1118,7 +1148,7 @@ function ExpenseRow({
               value={row.title}
               onChange={(e) => onChange({ title: e.target.value })}
               aria-label={t.title}
-              className="min-w-0 flex-1 bg-transparent font-medium outline-none focus:underline focus:decoration-[var(--line-strong)] focus:underline-offset-4"
+              className="min-w-0 flex-1 bg-transparent font-medium outline-none focus:underline focus:decoration-[var(--field-border)] focus:underline-offset-4"
             />
           </>
         )}
@@ -1127,13 +1157,13 @@ function ExpenseRow({
           onChange={(e) => onChange({ amountRaw: e.target.value })}
           inputMode="decimal"
           aria-label={t.amount}
-          className="w-[4.5rem] shrink-0 bg-transparent text-right font-semibold tabular-nums outline-none focus:underline focus:decoration-[var(--line-strong)] focus:underline-offset-4"
+          className="w-[4.5rem] shrink-0 bg-transparent text-right font-semibold tabular-nums outline-none focus:underline focus:decoration-[var(--field-border)] focus:underline-offset-4"
         />
         <select
           value={row.currency}
           onChange={(e) => onChange({ currency: e.target.value })}
           aria-label={t.currency}
-          className="shrink-0 cursor-pointer bg-transparent text-xs font-medium text-[var(--text-muted)] outline-none"
+          className="shrink-0 cursor-pointer bg-transparent text-xs font-medium text-[var(--text-2)] outline-none"
         >
           {CURRENCIES.map((c) => (
             <option key={c} value={c}>
@@ -1173,16 +1203,16 @@ function ExpenseRow({
         >
           {payment ? (
             <>
-              <IconExchange className="size-3.5 text-[var(--text-muted)]" />
+              <IconExchange className="size-3.5 text-[var(--text-2)]" />
               <span>{t.payment}</span>
             </>
           ) : (
             <>
-              <IconUsers className="size-3.5 text-[var(--text-muted)]" />
+              <IconUsers className="size-3.5 text-[var(--text-2)]" />
               <span className="max-w-[7rem] truncate">{participantLabel}</span>
             </>
           )}
-          <IconChevronDown className="size-3 text-[var(--text-muted)]" />
+          <IconChevronDown className="size-3 text-[var(--text-2)]" />
         </button>
 
         <PillControl
@@ -1208,7 +1238,7 @@ function ExpenseRow({
         </PillControl>
 
         {rate !== null && row.currency !== base && amountCents != null && (
-          <span className="text-xs tabular-nums text-[var(--text-muted)]">
+          <span className="text-xs tabular-nums text-[var(--text-2)]">
             ≈ {formatCents(toBaseCents(amountCents, rate), base, intl)}
           </span>
         )}
@@ -1217,7 +1247,7 @@ function ExpenseRow({
       {/* A spoken aside ends up here — visible without expanding, because it's
           part of what the user is being asked to check. */}
       {row.note.trim() && !row.expanded && (
-        <p className="mt-1 truncate pl-8 text-xs text-[var(--text-muted)]">{row.note}</p>
+        <p className="mt-1 truncate pl-8 text-xs text-[var(--text-2)]">{row.note}</p>
       )}
 
       <DuplicateLine matches={matches} memberName={memberName} className="mt-1.5 pl-8" />
@@ -1286,7 +1316,7 @@ function ExpenseRow({
             onChange={(e) => onChange({ note: e.target.value })}
             placeholder={t.note}
             aria-label={t.note}
-            className="mt-2 w-full bg-transparent text-sm outline-none placeholder:text-[var(--text-muted)]"
+            className="mt-2 w-full bg-transparent text-sm outline-none placeholder:text-[var(--text-2)]"
           />
         </div>
       )}
@@ -1311,9 +1341,9 @@ function PillControl({
 }) {
   return (
     <span className={`pill relative ${compact ? "px-1.5" : ""}`}>
-      <span className="text-[var(--text-muted)]">{icon}</span>
+      <span className="text-[var(--text-2)]">{icon}</span>
       {label && <span className="max-w-[7rem] truncate">{label}</span>}
-      {!compact && <IconChevronDown className="size-3 text-[var(--text-muted)]" />}
+      {!compact && <IconChevronDown className="size-3 text-[var(--text-2)]" />}
       {children}
     </span>
   );

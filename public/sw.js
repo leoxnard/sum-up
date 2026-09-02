@@ -1,7 +1,7 @@
 // Sum Up service worker: app-shell + per-URL navigation caching.
 // Data freshness is the app's job (IndexedDB mirror + outbox); the worker only
 // guarantees that HTML, JS, CSS and photos are available offline.
-const VERSION = "v2";
+const VERSION = "v3";
 const ASSET_CACHE = `sumup-assets-${VERSION}`;
 const PAGE_CACHE = `sumup-pages-${VERSION}`;
 const PHOTO_CACHE = `sumup-photos-${VERSION}`;

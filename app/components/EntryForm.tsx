@@ -1,13 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Link, useNavigate } from "react-router";
+import { Link } from "react-router";
 
 import { useT } from "../root";
 import { CURRENCIES } from "../lib/currencies";
 import { CATEGORIES } from "../lib/categories";
 import { resizeImage } from "../lib/client/image";
+import { readClipboard } from "../lib/client/clipboard";
 import { findDuplicates } from "../lib/duplicates";
 import { DuplicateNotice } from "./DuplicateWarning";
-import { IconCamera, IconSparkles, IconTrash } from "./icons";
+import { PushPanel, Sheet, SheetHead, useDismiss } from "./overlays";
+import { IconBackspace, IconCamera, IconClipboard, IconSparkles, IconTrash } from "./icons";
 import { categoryLabel } from "../lib/i18n";
 import { cleanAmountInput, formatCents, parseAmountToCents, toBaseCents } from "../lib/money";
 import { computeShares, type SplitInput } from "../lib/split";
@@ -31,9 +33,9 @@ function parseNumber(raw: string): number | null {
 
 const today = () => new Date().toISOString().slice(0, 10);
 
-export function EntryForm({ snapshot, kind, me, entry }: Props) {
+function EntryFields({ snapshot, kind, me, entry }: Props) {
   const { t, intl } = useT();
-  const navigate = useNavigate();
+  const dismiss = useDismiss();
   const group = snapshot.group;
   const members = snapshot.members;
 
@@ -257,7 +259,7 @@ export function EntryForm({ snapshot, kind, me, entry }: Props) {
       photoChanged: photoDataUrl !== null || photoRemoved,
     };
     await submitOp(op);
-    navigate(`/g/${group.slug}`);
+    dismiss();
   }
 
   async function onDelete() {
@@ -270,8 +272,9 @@ export function EntryForm({ snapshot, kind, me, entry }: Props) {
       groupId: group.id,
       entryId: entry.id,
     });
-    navigate(`/g/${group.slug}`);
+    dismiss();
   }
+
 
   const heading =
     kind === "payment"
@@ -283,14 +286,40 @@ export function EntryForm({ snapshot, kind, me, entry }: Props) {
       ? `/g/${group.slug}/photo/${entry.photoId}`
       : null;
 
-  return (
-    <main className="animate-rise px-4 pb-16 pt-6">
-      <header className="flex items-center justify-between">
-        <h1 className="text-xl font-bold tracking-tight">{heading}</h1>
-        <button onClick={() => navigate(-1)} className="btn btn-ghost -mr-3">
-          {t.cancel}
-        </button>
-      </header>
+  const fields = (
+    <>
+      {kind === "expense" && !entry && (
+        // Typing it and capturing it are two ways into the same job, so they
+        // sit on one switch rather than behind separate buttons. The AI half is
+        // its own route — the import screen explains itself when the key is
+        // missing, exactly as it does when reached any other way.
+        <div className="segment mb-4 grid-cols-2">
+          <span aria-current="page" className="segment-item text-center">
+            {t.modeManual}
+          </span>
+          <Link to={`/g/${group.slug}/import`} className="segment-item text-center">
+            {t.modeAI}
+          </Link>
+        </div>
+      )}
+
+      <AmountPad
+        raw={amountRaw}
+        currency={currency}
+        onChange={(next) => {
+          setAmountRaw(next);
+          setRows((current) => rebalance(current, parseAmountToCents(next), mode));
+        }}
+        caption={
+          kind === "expense" && split?.ok && amountCents
+            ? `${split.shares.length} × ${formatCents(
+                Math.round(amountCents / split.shares.length),
+                currency,
+                intl,
+              )}`
+            : null
+        }
+      />
 
       <div className="mt-5 flex flex-col gap-4">
         {kind === "expense" && (
@@ -300,51 +329,25 @@ export function EntryForm({ snapshot, kind, me, entry }: Props) {
               onChange={(e) => setTitle(e.target.value)}
               placeholder={t.titlePlaceholder}
               className="input"
-              autoFocus={!entry}
             />
           </Field>
         )}
 
-        <div className="flex gap-3">
-          <Field label={t.amount} className="flex-1">
-            <input
-              value={amountRaw}
-              onChange={(e) => {
-                setAmountRaw(e.target.value);
-                setRows((current) =>
-                  rebalance(current, parseAmountToCents(e.target.value), mode),
-                );
-              }}
-              onPaste={(e) => {
-                // "12,50 €" out of a banking app or a chat has to land as an
-                // amount, not as text the field then refuses to parse.
-                const text = e.clipboardData.getData("text");
-                if (!text) return;
-                e.preventDefault();
-                const cleaned = cleanAmountInput(text);
-                setAmountRaw(cleaned);
-                setRows((current) => rebalance(current, parseAmountToCents(cleaned), mode));
-              }}
-              inputMode="decimal"
-              placeholder="0.00"
-              className="input text-lg font-semibold tabular-nums"
-            />
-          </Field>
-          <Field label={t.currency}>
-            <select
-              value={currency}
-              onChange={(e) => {
-                setCurrency(e.target.value);
-                setRateAuto(true);
-              }}
-              className="input"
-            >
-              {CURRENCIES.map((c) => (
-                <option key={c} value={c}>{c}</option>
-              ))}
-            </select>
-          </Field>
-        </div>
+        {/* 31 ECB currencies is a chip wall — this one stays a select. */}
+        <Field label={t.currency}>
+          <select
+            value={currency}
+            onChange={(e) => {
+              setCurrency(e.target.value);
+              setRateAuto(true);
+            }}
+            className="input"
+          >
+            {CURRENCIES.map((c) => (
+              <option key={c} value={c}>{c}</option>
+            ))}
+          </select>
+        </Field>
 
         {isForeign && (
           <Field label={`${t.exchangeRate} — ${t.exchangeRateHint(currency, group.baseCurrency)}`}>
@@ -355,15 +358,15 @@ export function EntryForm({ snapshot, kind, me, entry }: Props) {
                 setRateAuto(false);
               }}
               inputMode="decimal"
-              className="input tabular-nums"
+              className="input num font-normal"
             />
             {rateFailed && rateAuto !== false && (
-              <p className="mt-1 text-xs text-amber-600">{t.rateUnavailable}</p>
+              <p className="mt-1.5 text-xs text-[var(--warn-text)]">{t.rateUnavailable}</p>
             )}
             {amountCents != null && rate != null && rate > 0 && (
-              <p className="mt-1 text-xs text-neutral-500">
+              <p className="mt-1.5 text-xs text-[var(--text-2)]">
                 {t.converted}:{" "}
-                <span className="font-medium tabular-nums">
+                <span className="num text-xs">
                   {formatCents(toBaseCents(amountCents, rate), group.baseCurrency, intl)}
                 </span>
               </p>
@@ -373,19 +376,27 @@ export function EntryForm({ snapshot, kind, me, entry }: Props) {
 
         <DuplicateNotice matches={duplicates} memberName={memberName} />
 
-        <Field label={kind === "payment" ? t.payer : t.payer}>
-          <MemberSelect members={members} value={payerId} onChange={setPayerId} />
+        <Field label={t.payer}>
+          <ChipGroup
+            options={members.map((m) => ({ id: m.id, label: m.name }))}
+            value={payerId}
+            onChange={setPayerId}
+          />
         </Field>
 
         {kind === "payment" && (
           <Field label={t.recipient}>
-            <MemberSelect members={members} value={recipientId} onChange={setRecipientId} />
+            <ChipGroup
+              options={members.map((m) => ({ id: m.id, label: m.name }))}
+              value={recipientId}
+              onChange={setRecipientId}
+            />
           </Field>
         )}
 
         {kind === "expense" && (
           <Field label={t.splitBetween}>
-            <div className="segment mb-2 grid-cols-4">
+            <div className="segment mb-2.5 grid-cols-4">
               {(["equal", "exact", "percent", "shares"] as const).map((m) => (
                 <button
                   key={m}
@@ -401,8 +412,8 @@ export function EntryForm({ snapshot, kind, me, entry }: Props) {
                 </button>
               ))}
             </div>
-            <div className="card row-divider overflow-hidden">
-              {members.map((member, index) => {
+            <div className="glass glass-list">
+              {members.map((member) => {
                 const row = rows.get(member.id) ?? { included: true, raw: "" };
                 // Shown in a slot that is always reserved, so the row doesn't
                 // reflow the moment the split starts adding up. While the sum
@@ -413,10 +424,7 @@ export function EntryForm({ snapshot, kind, me, entry }: Props) {
                     ? parseAmountToCents(row.raw)
                     : null;
                 return (
-                  <label
-                    key={member.id}
-                    className="flex cursor-pointer items-center gap-3 px-3.5 py-2.5 transition-colors hover:bg-[var(--surface-sunken)]"
-                  >
+                  <label key={member.id} className="glass-row cursor-pointer">
                     <input
                       type="checkbox"
                       checked={row.included}
@@ -434,7 +442,7 @@ export function EntryForm({ snapshot, kind, me, entry }: Props) {
                       }
                       className="checkbox"
                     />
-                    <span className="min-w-0 flex-1 truncate font-medium">{member.name}</span>
+                    <span className="min-w-0 flex-1 truncate font-semibold">{member.name}</span>
                     {mode !== "equal" && row.included && (
                       <input
                         value={row.raw}
@@ -466,14 +474,14 @@ export function EntryForm({ snapshot, kind, me, entry }: Props) {
                         }}
                         inputMode="decimal"
                         placeholder={mode === "shares" ? "1" : mode === "percent" ? "0" : "0.00"}
-                        className="input h-9 w-20 bg-[var(--surface-sunken)] px-2.5 text-right text-sm tabular-nums"
+                        className="input num h-9 w-20 px-2.5 text-right text-sm font-normal"
                       />
                     )}
                     {mode === "percent" && row.included && (
-                      <span className="text-xs text-[var(--text-muted)]">%</span>
+                      <span className="text-xs text-[var(--text-2)]">%</span>
                     )}
                     {row.included && (
-                      <span className="w-20 shrink-0 text-right text-xs tabular-nums text-[var(--text-muted)]">
+                      <span className="num w-20 shrink-0 text-right text-xs font-medium text-[var(--text-2)]">
                         {shareCents != null ? formatCents(shareCents, currency, intl) : ""}
                       </span>
                     )}
@@ -482,8 +490,8 @@ export function EntryForm({ snapshot, kind, me, entry }: Props) {
               })}
             </div>
             {remaining !== null && (
-              <p className="mt-1 text-right text-xs text-neutral-500">
-                {t.splitRestHint}: <span className="tabular-nums">{remaining}</span>
+              <p className="mt-1.5 text-right text-xs text-[var(--text-2)]">
+                {t.splitRestHint}: <span className="num text-xs">{remaining}</span>
               </p>
             )}
           </Field>
@@ -531,10 +539,10 @@ export function EntryForm({ snapshot, kind, me, entry }: Props) {
               <img
                 src={photoDataUrl ?? existingPhotoUrl ?? undefined}
                 alt=""
-                className="animate-pop mb-2 max-h-56 rounded-[var(--radius-card)] border border-[var(--line)] object-contain"
+                className="animate-pop mb-2 max-h-56 rounded-[var(--radius-card)] border border-[var(--glass-border)] object-contain"
               />
             )}
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <button
                 type="button"
                 onClick={() => fileInput.current?.click()}
@@ -576,22 +584,195 @@ export function EntryForm({ snapshot, kind, me, entry }: Props) {
         )}
 
         {error && (
-          <p className="animate-pop rounded-xl bg-rose-500/10 px-3.5 py-2.5 text-sm font-medium text-rose-600 dark:text-rose-400">
+          <p
+            className="animate-pop rounded-2xl px-3.5 py-2.5 text-sm font-semibold"
+            style={{
+              color: "var(--neg)",
+              background: "color-mix(in oklab, var(--neg) 12%, transparent)",
+            }}
+          >
             {error}
           </p>
         )}
+      </div>
+    </>
+  );
 
-        <button onClick={() => void onSave()} className="btn btn-primary btn-lg mt-2">
+  // Editing arrives as a pushed panel, so its actions sit at the foot of the
+  // page; a new entry arrives as a sheet, where Save belongs in the header next
+  // to Cancel and the body scrolls underneath.
+  if (entry) {
+    return (
+      <>
+        {fields}
+        <button onClick={() => void onSave()} className="btn btn-primary btn-lg mt-5 w-full">
           {t.save}
         </button>
-        {entry && (
-          <button onClick={() => void onDelete()} className="btn btn-danger">
-            <IconTrash className="size-[1.05em]" />
-            {t.delete}
-          </button>
-        )}
+        <button onClick={() => void onDelete()} className="btn btn-danger mt-2.5 w-full">
+          <IconTrash className="size-[1.05em]" />
+          {t.delete}
+        </button>
+      </>
+    );
+  }
+
+  return (
+    <>
+      <header className="sheet-head">
+        <button
+          type="button"
+          onClick={dismiss}
+          className="-ml-1 shrink-0 px-1 py-1 text-[0.9375rem] font-semibold text-[var(--text-2)]"
+        >
+          {t.cancel}
+        </button>
+        <h2 className="min-w-0 flex-1 truncate text-center text-base font-bold">{heading}</h2>
+        <button
+          onClick={() => void onSave()}
+          className="btn btn-primary h-9 shrink-0 rounded-2xl px-4 text-sm"
+        >
+          {t.save}
+        </button>
+      </header>
+      <div className="sheet-body pt-4">{fields}</div>
+    </>
+  );
+}
+
+export function EntryForm(props: Props) {
+  const { t } = useT();
+  const backTo = `/g/${props.snapshot.group.slug}`;
+  const heading =
+    props.kind === "payment"
+      ? props.entry ? t.editPayment : t.newPayment
+      : props.entry ? t.editExpense : t.newExpense;
+
+  if (props.entry) {
+    return (
+      <PushPanel backTo={backTo} title={heading}>
+        <EntryFields {...props} />
+      </PushPanel>
+    );
+  }
+  return (
+    <Sheet backTo={backTo} label={heading}>
+      <EntryFields {...props} />
+    </Sheet>
+  );
+}
+
+/**
+ * The amount, at the size the design gives it, driven by an on-screen pad.
+ *
+ * The display is still a real input with `inputMode="none"`: that suppresses
+ * the system keyboard (the pad replaces it) while keeping the caret, physical
+ * keyboards, screen readers and — the reason this matters — iOS's long-press
+ * Paste callout, which a plain div would swallow. The Paste button next to it
+ * covers the browsers that hide the callout.
+ */
+function AmountPad({
+  raw,
+  currency,
+  caption,
+  onChange,
+}: {
+  raw: string;
+  currency: string;
+  caption: string | null;
+  onChange: (next: string) => void;
+}) {
+  const { t } = useT();
+  const [pasteError, setPasteError] = useState<string | null>(null);
+
+  /** Append one character, keeping the value a well-formed decimal. */
+  function press(key: string) {
+    if (key === ".") {
+      if (raw.includes(".")) return;
+      onChange((raw || "0") + ".");
+      return;
+    }
+    const [, decimals] = raw.split(".");
+    if (decimals !== undefined && decimals.length >= 2) return;
+    if (raw === "0") {
+      onChange(key);
+      return;
+    }
+    onChange(raw + key);
+  }
+
+  async function paste() {
+    setPasteError(null);
+    try {
+      const item = await readClipboard();
+      if (item.kind !== "text") {
+        setPasteError(t.pasteEmpty);
+        return;
+      }
+      const cleaned = cleanAmountInput(item.text);
+      if (parseAmountToCents(cleaned) == null) {
+        setPasteError(t.pasteEmpty);
+        return;
+      }
+      onChange(cleaned);
+    } catch {
+      setPasteError(t.pasteDenied);
+    }
+  }
+
+  return (
+    <section>
+      <div className="flex items-baseline justify-center gap-2">
+        <input
+          value={raw}
+          onChange={(e) => onChange(cleanAmountInput(e.target.value))}
+          onPaste={(e) => {
+            // "12,50 €" out of a banking app or a chat has to land as an
+            // amount, not as text the field then refuses to parse.
+            const text = e.clipboardData.getData("text");
+            if (!text) return;
+            e.preventDefault();
+            onChange(cleanAmountInput(text));
+          }}
+          inputMode="none"
+          placeholder="0.00"
+          aria-label={t.amount}
+          className="num w-full border-0 bg-transparent p-0 text-center text-[3.125rem] leading-none tracking-[-0.03em] outline-none placeholder:text-[var(--text-3)]"
+        />
       </div>
-    </main>
+      <p className="mt-1.5 text-center text-[0.78125rem] text-[var(--text-2)]">
+        {caption ?? currency}
+      </p>
+
+      <div className="mt-4 grid grid-cols-3 gap-2.5">
+        {["1", "2", "3", "4", "5", "6", "7", "8", "9"].map((key) => (
+          <button key={key} type="button" onClick={() => press(key)} className="key">
+            {key}
+          </button>
+        ))}
+        <button type="button" onClick={() => press(".")} className="key">
+          .
+        </button>
+        <button type="button" onClick={() => press("0")} className="key">
+          0
+        </button>
+        <button
+          type="button"
+          onClick={() => onChange(raw.slice(0, -1))}
+          aria-label={t.backspace}
+          className="key"
+        >
+          <IconBackspace className="size-[1.375rem]" />
+        </button>
+      </div>
+
+      <button type="button" onClick={() => void paste()} className="btn btn-ghost mt-2.5 w-full">
+        <IconClipboard className="size-[1.05em]" />
+        {t.pasteClipboard}
+      </button>
+      {pasteError && (
+        <p className="mt-1 text-center text-xs text-[var(--warn-text)]">{pasteError}</p>
+      )}
+    </section>
   );
 }
 
@@ -606,28 +787,35 @@ function Field({
 }) {
   return (
     <div className={className}>
-      <label className="mb-1.5 block text-sm font-medium text-[var(--text-muted)]">
-        {label}
-      </label>
+      <label className="section-label mb-2 block">{label}</label>
       {children}
     </div>
   );
 }
 
-function MemberSelect({
-  members,
+/** A row of tap targets where a `<select>` used to be — one tap, no dropdown. */
+function ChipGroup({
+  options,
   value,
   onChange,
 }: {
-  members: { id: string; name: string }[];
+  options: { id: string; label: string }[];
   value: string;
   onChange: (id: string) => void;
 }) {
   return (
-    <select value={value} onChange={(e) => onChange(e.target.value)} className="input">
-      {members.map((m) => (
-        <option key={m.id} value={m.id}>{m.name}</option>
+    <div className="flex flex-wrap gap-2">
+      {options.map((option) => (
+        <button
+          key={option.id}
+          type="button"
+          aria-pressed={option.id === value}
+          onClick={() => onChange(option.id)}
+          className="chip"
+        >
+          {option.label}
+        </button>
       ))}
-    </select>
+    </div>
   );
 }

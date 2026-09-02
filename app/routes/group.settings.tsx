@@ -1,9 +1,9 @@
-import { Link, useNavigate, useRevalidator } from "react-router";
+import { useNavigate, useRevalidator } from "react-router";
 import { useState } from "react";
 
 import { useGroup } from "./group";
 import { useT } from "../root";
-import { ACCENTS, ACCENT_KEYS, type AccentKey } from "../lib/accent";
+import { accentStrong, accentVivid, ACCENT_KEYS, type AccentKey } from "../lib/accent";
 import { LOCALES, LOCALE_LABELS, type Locale } from "../lib/i18n";
 import { submitOp } from "../lib/client/outbox";
 import { forgetDeviceGroup } from "../lib/client/idb";
@@ -128,15 +128,12 @@ export default function Settings() {
   }
 
   return (
-    <main className="animate-rise px-4 pb-16 pt-6">
-      <header className="flex items-center justify-between">
-        <h1 className="text-xl font-bold tracking-tight">{t.settings}</h1>
-        <Link to={`/g/${group.slug}`} className="btn btn-ghost -mr-3">
-          {t.cancel}
-        </Link>
-      </header>
+    <main className="pt-2">
+      <h1 className="mb-5 text-[1.875rem] font-extrabold tracking-[-0.03em]">
+        {t.tabSettings}
+      </h1>
 
-      <div className="mt-5 flex flex-col gap-6">
+      <div className="flex flex-col gap-6">
         <section>
           <Label>{t.groupName}</Label>
           <div className="flex gap-2">
@@ -163,18 +160,16 @@ export default function Settings() {
                 aria-label={key}
                 aria-pressed={group.accentColor === key}
                 onClick={() => saveGroup({ accentColor: key })}
-                className={`grid size-9 place-items-center rounded-full text-white transition-transform duration-200 ease-[var(--ease-out)] hover:scale-110 active:scale-95 ${
-                  group.accentColor === key ? "scale-110 ring-2 ring-offset-2" : ""
-                }`}
-                style={{
-                  backgroundColor: ACCENTS[key].strong,
-                  ...(group.accentColor === key
-                    ? ({
-                        "--tw-ring-color": ACCENTS[key].strong,
-                        "--tw-ring-offset-color": "var(--page)",
-                      } as React.CSSProperties)
-                    : {}),
-                }}
+                className={`swatch ${group.accentColor === key ? "is-on" : ""}`}
+                // The swatch shows the tone this ground will actually use, so
+                // picking "lime" in the dark doesn't hand you a different colour
+                // than the one you tapped.
+                style={
+                  {
+                    "--swatch-light": accentStrong(key),
+                    "--swatch-dark": accentVivid(key),
+                  } as React.CSSProperties
+                }
               >
                 {group.accentColor === key && <IconCheck className="animate-pop size-4" />}
               </button>
@@ -184,9 +179,9 @@ export default function Settings() {
 
         <section>
           <Label>{t.inviteLink}</Label>
-          <p className="mb-2 text-xs text-[var(--text-muted)]">{t.inviteHint}</p>
-          <div className="flex gap-2">
-            <input readOnly value={inviteUrl} className="input text-xs" />
+          <p className="mb-2 text-xs text-[var(--text-2)]">{t.inviteHint}</p>
+          <div className="flex flex-wrap gap-2">
+            <input readOnly value={inviteUrl} className="input num text-xs font-normal" />
             <button onClick={copyInvite} className="btn btn-outline">
               {copied ? (
                 <IconCheck className="animate-pop size-[1.1em]" />
@@ -204,7 +199,7 @@ export default function Settings() {
 
         <section>
           <Label>{t.members}</Label>
-          <div className="card row-divider overflow-hidden">
+          <div className="glass glass-list">
             {snapshot.members.map((member) => (
               <div key={member.id} className="flex items-center gap-1 px-4 py-2">
                 <span className="min-w-0 flex-1 truncate font-medium">{member.name}</span>
@@ -216,7 +211,7 @@ export default function Settings() {
                 </button>
                 {usedMemberIds.has(member.id) ? (
                   <span
-                    className="grid size-9 place-items-center text-[var(--line-strong)]"
+                    className="grid size-9 place-items-center text-[var(--field-border)]"
                     title={t.memberInUse}
                     aria-label={t.removeMember}
                   >
@@ -277,7 +272,7 @@ export default function Settings() {
           </a>
         </section>
 
-        <section className="border-t border-[var(--line)] pt-4">
+        <section className="border-t border-[var(--glass-border)] pt-4">
           <button onClick={() => void deleteGroup()} className="btn btn-danger -ml-3">
             <IconTrash className="size-[1.05em]" />
             {t.deleteGroup}
@@ -289,9 +284,5 @@ export default function Settings() {
 }
 
 function Label({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="mb-1.5 text-sm font-medium text-[var(--text-muted)]">
-      {children}
-    </div>
-  );
+  return <div className="section-label mb-2">{children}</div>;
 }

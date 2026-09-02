@@ -4,88 +4,74 @@ import { useMemo } from "react";
 import { useGroup } from "./group";
 import { useT } from "../root";
 import { computeBalances } from "../lib/balances";
-import { formatCents, toBaseCents } from "../lib/money";
-import {
-  EntryIcon,
-  IconArrowLeft,
-  IconChart,
-  IconPlus,
-  IconSliders,
-  IconSparkles,
-} from "../components/icons";
-import type { Entry } from "../lib/types";
+import { formatCents } from "../lib/money";
 
+/**
+ * The Overview tab answers one question — where do I stand — and hands off
+ * everything else. The entry history lives one tab across, in Activity, so this
+ * screen stays readable at a glance instead of scrolling past the answer.
+ */
 export default function GroupOverview() {
   const { snapshot, me } = useGroup();
   const { t, intl } = useT();
   const base = snapshot.group.baseCurrency;
   const balances = useMemo(() => computeBalances(snapshot), [snapshot]);
-  const memberName = new Map(snapshot.members.map((m) => [m.id, m.name]));
   const myBalance = me ? (balances.get(me) ?? 0) : null;
+  const isMember = !!me && snapshot.members.some((m) => m.id === me);
 
   return (
-    <main className="px-4 pb-32 pt-6">
-      <header className="animate-rise flex items-center gap-1">
-        <Link to="/" aria-label={t.backHome} className="btn-icon -ml-2.5 shrink-0">
-          <IconArrowLeft className="size-5" />
-        </Link>
-        <h1 className="min-w-0 flex-1 truncate text-2xl font-bold tracking-tight">
-          {snapshot.group.name}
-        </h1>
-        <div className="flex shrink-0 gap-0.5">
-          <Link to="stats" aria-label={t.stats} className="btn-icon">
-            <IconChart className="size-5" />
-          </Link>
-          <Link to="settings" aria-label={t.settings} className="btn-icon">
-            <IconSliders className="size-5" />
-          </Link>
-        </div>
-      </header>
+    <main className="pt-2">
+      <section className="animate-rise text-center">
+        <p className="text-[0.78125rem] text-[var(--text-2)]">
+          {snapshot.members.map((m) => m.name).join(", ")} · {base}
+        </p>
+        {isMember && myBalance !== null && (
+          <>
+            <h2 className="section-label mt-6">{t.yourBalance}</h2>
+            <p
+              className="num mt-2 text-[3.5rem] leading-none tracking-[-0.035em]"
+              style={{
+                color:
+                  myBalance > 0
+                    ? "var(--accent)"
+                    : myBalance < 0
+                      ? "var(--neg)"
+                      : "var(--text-2)",
+              }}
+            >
+              {formatCents(myBalance, base, intl)}
+            </p>
+            <p className="mt-2.5 text-[0.84375rem] text-[var(--text-2)]">
+              {myBalance > 0 ? t.youAreOwed : myBalance < 0 ? t.youOwe : t.allSettled}
+            </p>
+          </>
+        )}
+      </section>
 
-      {myBalance !== null && me && memberName.has(me) && (
-        <section
-          className="animate-rise relative mt-5 overflow-hidden rounded-[var(--radius-card)] px-5 py-5 text-white"
-          style={{
-            background:
-              "linear-gradient(135deg, color-mix(in oklab, var(--accent) 88%, white) 0%, var(--accent) 55%, color-mix(in oklab, var(--accent) 80%, black) 100%)",
-            boxShadow: "var(--shadow-pop)",
-            animationDelay: "60ms",
-          }}
-        >
-          {/* Soft highlight so the card reads as a surface, not a flat swatch. */}
-          <span
-            aria-hidden
-            className="pointer-events-none absolute -right-10 -top-16 size-44 rounded-full bg-white/15 blur-2xl"
-          />
-          <div className="text-sm/none font-medium opacity-75">{t.yourBalance}</div>
-          <div className="mt-2 text-[2.15rem] font-bold leading-none tabular-nums">
-            {formatCents(myBalance, base, intl)}
-          </div>
-          <div className="mt-2 text-sm opacity-80">
-            {myBalance > 0 ? t.youAreOwed : myBalance < 0 ? t.youOwe : t.allSettled}
-          </div>
-        </section>
-      )}
-
-      <section className="mt-7">
+      <section className="animate-rise mt-7" style={{ animationDelay: "60ms" }}>
         <h2 className="section-label">{t.balances}</h2>
-        <div className="card row-divider mt-2.5 overflow-hidden">
+        <div className="glass glass-list mt-2.5">
           {snapshot.members.map((member) => {
             const balance = balances.get(member.id) ?? 0;
             return (
-              <div
-                key={member.id}
-                className="flex items-center justify-between px-4 py-3"
-              >
-                <span className="font-medium">{member.name}</span>
+              <div key={member.id} className="glass-row">
                 <span
-                  className={`text-sm font-semibold tabular-nums ${
-                    balance > 0
-                      ? "text-emerald-600 dark:text-emerald-400"
-                      : balance < 0
-                        ? "text-rose-600 dark:text-rose-400"
-                        : "text-[var(--text-muted)]"
-                  }`}
+                  aria-hidden
+                  className="flex size-8 shrink-0 items-center justify-center rounded-full bg-[var(--bar-track)] text-[0.78125rem] font-bold"
+                >
+                  {[...member.name][0]?.toUpperCase() ?? "?"}
+                </span>
+                <span className="min-w-0 flex-1 truncate font-semibold">{member.name}</span>
+                <span
+                  className="num shrink-0 text-[0.9375rem]"
+                  style={{
+                    color:
+                      balance > 0
+                        ? "var(--accent)"
+                        : balance < 0
+                          ? "var(--neg)"
+                          : "var(--text-2)",
+                  }}
                 >
                   {formatCents(balance, base, intl)}
                 </span>
@@ -93,115 +79,16 @@ export default function GroupOverview() {
             );
           })}
         </div>
-        <Link to="settle" className="btn btn-outline mt-3 w-full">
-          {t.settleUp}
-        </Link>
-      </section>
 
-      <section className="mt-7">
-        <h2 className="section-label">{t.entries}</h2>
-        {snapshot.entries.length === 0 ? (
-          <p className="card mt-2.5 px-4 py-8 text-center text-sm text-[var(--text-muted)]">
-            {t.noEntriesYet}
-          </p>
-        ) : (
-          <EntryList entries={snapshot.entries} memberName={memberName} base={base} />
-        )}
-      </section>
-
-      <nav className="pointer-events-none fixed inset-x-0 bottom-0 z-10">
-        {/* Fade the content out behind the floating action bar. */}
-        <div
-          aria-hidden
-          className="h-10 bg-gradient-to-t from-[var(--page)] to-transparent"
-        />
-        <div className="pointer-events-auto mx-auto flex max-w-lg gap-2 bg-[var(--page)] px-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
+        <div className="mt-3 flex gap-2.5">
+          <Link to="settle" className="btn btn-neutral btn-lg flex-1">
+            {t.settleUp}
+          </Link>
           <Link to="new-payment" className="btn btn-neutral btn-lg flex-1">
             {t.addPayment}
           </Link>
-          {/* Capturing by voice or photo is a shortcut into the same "add
-              expenses" job, so it sits next to the primary action rather than
-              in the header. */}
-          <Link
-            to="import"
-            aria-label={t.importTitle}
-            title={t.importTitle}
-            className="btn btn-neutral btn-lg shrink-0 px-0 w-[var(--control-h-lg)]"
-          >
-            <IconSparkles className="size-[1.25em]" />
-          </Link>
-          <Link to="new-expense" className="btn btn-primary btn-lg flex-[1.6]">
-            <IconPlus className="size-[1.1em]" />
-            {t.addExpense}
-          </Link>
         </div>
-      </nav>
+      </section>
     </main>
-  );
-}
-
-function EntryList({
-  entries,
-  memberName,
-  base,
-}: {
-  entries: Entry[];
-  memberName: Map<string, string>;
-  base: string;
-}) {
-  const { t, intl } = useT();
-  const dateFormat = new Intl.DateTimeFormat(intl, { dateStyle: "medium" });
-  let lastDate = "";
-  return (
-    <div className="stagger mt-2.5 flex flex-col gap-1.5">
-      {entries.map((entry, index) => {
-        const showDate = entry.expenseDate !== lastDate;
-        lastDate = entry.expenseDate;
-        const foreign = entry.currency !== base;
-        return (
-          <div key={entry.id} style={{ "--i": Math.min(index, 12) } as React.CSSProperties}>
-            {showDate && (
-              <div className="mb-1.5 mt-4 text-xs font-semibold text-[var(--text-muted)]">
-                {dateFormat.format(new Date(`${entry.expenseDate}T12:00:00`))}
-              </div>
-            )}
-            <Link
-              to={`entry/${entry.id}`}
-              className="card pressable flex items-center gap-3 px-3 py-2.5"
-            >
-              <span className="glyph">
-                <EntryIcon
-                  kind={entry.kind}
-                  category={entry.category}
-                  className="size-[1.15rem]"
-                />
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="block truncate font-medium">
-                  {entry.kind === "payment"
-                    ? `${memberName.get(entry.payerId) ?? "?"} → ${memberName.get(entry.recipientId ?? "") ?? "?"}`
-                    : entry.title}
-                </span>
-                <span className="block truncate text-xs text-[var(--text-muted)]">
-                  {entry.kind === "payment"
-                    ? t.payment
-                    : `${t.paidBy} ${memberName.get(entry.payerId) ?? "?"}`}
-                </span>
-              </span>
-              <span className="shrink-0 text-right">
-                <span className="block font-semibold tabular-nums">
-                  {formatCents(entry.amountCents, entry.currency, intl)}
-                </span>
-                {foreign && (
-                  <span className="block text-xs tabular-nums text-[var(--text-muted)]">
-                    {formatCents(toBaseCents(entry.amountCents, entry.exchangeRate), base, intl)}
-                  </span>
-                )}
-              </span>
-            </Link>
-          </div>
-        );
-      })}
-    </div>
   );
 }

@@ -13,7 +13,7 @@ import type { Route } from "./+types/root";
 import "./app.css";
 import { getLocale } from "./lib/server/cookies.server";
 import { dict, INTL_LOCALE, type Locale } from "./lib/i18n";
-import { Analytics } from "@vercel/analytics/react";
+import { Analytics } from "./components/Analytics";
 
 export function loader({ request }: Route.LoaderArgs) {
   return {
@@ -58,12 +58,16 @@ export const links: Route.LinksFunction = () => [
   { rel: "manifest", href: "/manifest.webmanifest" },
   { rel: "icon", href: "/icons/icon.svg", type: "image/svg+xml" },
   { rel: "apple-touch-icon", href: "/icons/apple-touch-icon.png" },
+  // Plus Jakarta Sans for the interface, Space Grotesk for every figure. Both
+  // are progressive: offline, or if fonts.googleapis.com is blocked, the stacks
+  // in app.css fall back to the system UI face and the layout is unchanged.
+  { rel: "preconnect", href: "https://fonts.googleapis.com" },
+  { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
+  {
+    rel: "stylesheet",
+    href: "https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&display=swap",
+  },
 ];
-
-/** Replace a group slug anywhere in the reported URL with a placeholder. */
-export function scrubSlug<T extends { url: string }>(event: T): T {
-  return { ...event, url: event.url.replace(/\/g\/[^/?#]+/, "/g/[slug]") };
-}
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const data = useRouteLoaderData<typeof loader>("root");
@@ -77,7 +81,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-        <meta name="theme-color" content="#0f172a" />
+        {/* Matches the top of the page gradient so the iOS status-bar area
+            blends into the app instead of banding against it. */}
+        <meta name="theme-color" content="#f4f6fa" media="(prefers-color-scheme: light)" />
+        <meta name="theme-color" content="#0b0d11" media="(prefers-color-scheme: dark)" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <Meta />
         <Links />
@@ -86,10 +93,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
         {children}
         <ScrollRestoration />
         <Scripts />
-        {/* The slug IS the group's credential and it lives in the path, so it
-            must not leave the device. Analytics still sees which screens are
-            used, just not which group. */}
-        <Analytics beforeSend={scrubSlug} />
+        {/* Reports to our own Umami instance. The slug IS the group's
+            credential and it lives in the path, so app/lib/analytics.ts strips
+            it before anything is sent. */}
+        <Analytics />
       </body>
     </html>
   );
@@ -118,7 +125,7 @@ export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
   return (
     <main className="animate-rise mx-auto max-w-md px-4 pt-16">
       <h1 className="text-2xl font-bold tracking-tight">{message}</h1>
-      <p className="mt-2 text-[var(--text-muted)]">{details}</p>
+      <p className="mt-2 text-[var(--text-2)]">{details}</p>
       <a href="/" className="btn btn-outline mt-6">
         Sum Up
       </a>

@@ -5,12 +5,16 @@ export const en = {
   homeTagline: "Split group expenses. No accounts, just a link.",
   yourGroups: "Your groups",
   noGroupsYet: "No groups on this device yet.",
+  storageUnavailable:
+    "This device's local storage can't be read, so your groups can't be listed. Close any other Sum Up tabs and reload — your data is safe, it's only this list that's missing.",
   createGroup: "New group",
   joinGroup: "Join a group",
   joinByCode: "Paste an invite link or code",
   join: "Join",
   joinInvalid: "That doesn't look like a valid invite link or code.",
   // Group creation / settings
+  credentialNote:
+    "A group's link is its only credential — no accounts, no sign-in. Anyone holding it can see and edit the group.",
   groupName: "Group name",
   groupNamePlaceholder: "e.g. Rome Trip",
   baseCurrency: "Base currency",
@@ -40,6 +44,15 @@ export const en = {
   whoAreYou: "Who are you?",
   whoAreYouHint: "Pick your name — this device will remember it. Used to show your balance and prefill the payer.",
   notInList: "Just viewing",
+  // Group tabs
+  tabOverview: "Overview",
+  tabActivity: "Activity",
+  tabStats: "Stats",
+  tabSettings: "Settings",
+  // Add-expense mode switch
+  modeManual: "Type it",
+  modeAI: "Scan or say it",
+  backspace: "Delete last digit",
   // Group overview
   yourBalance: "Your balance",
   youAreOwed: "you are owed",
@@ -202,6 +215,48 @@ export const en = {
   installHint: "Tip: add Sum Up to your home screen for the full app feel.",
   errorTitle: "Something went wrong",
   offlineNoData: "This group isn't available offline yet. Open it once while online.",
+  // Legal notice
+  legal: "Legal notice",
+  legalAddressTitle: "Details per § 5 DDG",
+  legalName: "Leonard Sima",
+  legalStreet: "Floriansmühlstrasse 1",
+  legalCity: "80939 Munich",
+  legalCountry: "Germany",
+  legalContactTitle: "Contact",
+  legalEmail: "sum-up@leonardsima.de",
+  legalHostingTitle: "Hosting",
+  legalHosting:
+    "This site does not run at an external host; it runs on the operator's own hardware. It is delivered through the content delivery network of Cloudflare, Inc., 101 Townsend St, San Francisco, CA 94107, USA, which processes connection data such as your IP address.",
+  // Privacy
+  legalPrivacy: "Privacy",
+  legalControllerTitle: "Controller",
+  legalController:
+    "Responsible for the processing described here is the person named above. Reach them at the contact address for anything in this section.",
+  legalDataTitle: "What is stored",
+  legalData:
+    "Sum Up has no accounts and asks for no registration. A group's link is its only credential — anyone holding it can read and write that group, so treat it like a password. Stored per group are the names you give members, the expenses and payments you enter with their amounts, currencies, dates, categories and notes, and any photos you attach. All of it lives in a Postgres database on our own server and is mirrored into your browser so the app keeps working offline.",
+  legalPurposeTitle: "Purpose and legal basis",
+  legalPurpose:
+    "The data is processed solely to provide the shared expense sheet you asked for — Art. 6(1)(b) GDPR. Server logs and the anonymous usage statistics below rest on our legitimate interest in a stable, comprehensible service, Art. 6(1)(f) GDPR. Nothing is used for advertising or profiling, and nothing is sold.",
+  legalThirdPartiesTitle: "Who else sees data",
+  legalThirdParties:
+    "Cloudflare delivers the site and sees connection data. When you import an expense from a photo or a voice recording, that file is sent to Google Ireland Ltd. for automatic extraction; the same applies to the title and note of an expense, which are sent for automatic categorization. Do not import documents whose contents should not leave your device. Exchange rates come from api.frankfurter.dev, which receives only currency codes and dates. A Supabase realtime channel signals that something in a group changed, without carrying the change itself.",
+  legalRetentionTitle: "How long",
+  legalRetention:
+    "A group's data is kept until you delete the group in its settings, which removes it. The offline copy in your browser goes when you clear the site's data there. You can export a group's entries as a CSV file at any time from its settings.",
+  legalRightsTitle: "Your rights",
+  legalRights:
+    "Under the GDPR you may request information about the data held about you, its correction or deletion, a restriction of processing, and its transfer to you; you may object to processing based on legitimate interest. Because there are no accounts, we can only match a request to a group you can name by its link. You may also complain to a supervisory authority, for Bavaria the Bayerisches Landesamt für Datenschutzaufsicht.",
+  legalAnalyticsTitle: "Analytics",
+  legalAnalytics:
+    "We run our own installation of Umami, a privacy-friendly analytics tool, on the same server. It records page views, the referring site, an approximate country and a coarse device and browser type. It sets no cookies, hashes IP addresses instead of storing them, and cannot follow you to other websites. The group link is removed from the address before anything is sent. No data is shared with a third party.",
+  legalCookiesTitle: "Cookies and local storage",
+  legalCookies:
+    "No tracking or advertising cookies are set. Sum Up stores your chosen language and which member you are in a group as small cookies, and keeps a copy of your groups in the browser's own storage so the app works offline. Clearing the site's data in your browser removes all of it.",
+  legalLiabilityTitle: "Liability for content and links",
+  legalLiability:
+    "The contents of this site were compiled with care, but no guarantee is given for their accuracy, completeness or timeliness. This site links to external services over whose content we have no influence; the respective provider is responsible for those.",
+  legalUpdated: "Last updated: 2 September 2026",
 };
 
 export type Dictionary = typeof en;

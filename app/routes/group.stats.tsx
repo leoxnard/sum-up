@@ -27,28 +27,14 @@ export default function Stats() {
   const maxPaid = Math.max(1, ...[...memberStats.values()].map((s) => s.paid));
 
   return (
-    <main className="animate-rise px-4 pb-16 pt-6">
-      <header className="flex items-center justify-between">
-        <h1 className="text-xl font-bold tracking-tight">{t.statsTitle}</h1>
-        <Link to={`/g/${snapshot.group.slug}`} className="btn btn-ghost -mr-3">
-          {t.cancel}
-        </Link>
-      </header>
+    <main className="pt-2">
+      <h1 className="sr-only">{t.statsTitle}</h1>
 
-      <section
-        className="relative mt-5 overflow-hidden rounded-[var(--radius-card)] px-5 py-5 text-white"
-        style={{
-          background:
-            "linear-gradient(135deg, color-mix(in oklab, var(--accent) 88%, white) 0%, var(--accent) 55%, color-mix(in oklab, var(--accent) 80%, black) 100%)",
-          boxShadow: "var(--shadow-pop)",
-        }}
-      >
-        <span
-          aria-hidden
-          className="pointer-events-none absolute -right-10 -top-16 size-44 rounded-full bg-white/15 blur-2xl"
-        />
-        <div className="text-sm/none font-medium opacity-75">{t.statsTotal}</div>
-        <div className="mt-2 text-[2.15rem] font-bold leading-none tabular-nums">
+      <section className="glass animate-rise p-[1.375rem]">
+        <div className="text-[0.78125rem] font-semibold text-[var(--text-2)]">
+          {t.statsTotal}
+        </div>
+        <div className="num mt-2 text-[2.5rem] leading-none tracking-[-0.02em]">
           {formatCents(total, base, intl)}
         </div>
       </section>
@@ -66,11 +52,11 @@ export default function Stats() {
                 <div className="min-w-0 flex-1">
                   <div className="flex justify-between gap-3 text-sm">
                     <span className="truncate font-medium">{member.name}</span>
-                    <span className="shrink-0 font-semibold tabular-nums">
+                    <span className="num shrink-0 text-sm">
                       {formatCents(stats.paid, base, intl)}
                     </span>
                   </div>
-                  <div className="mt-2 h-2 overflow-hidden rounded-full bg-[var(--surface-sunken)]">
+                  <div className="mt-2 h-[0.4375rem] overflow-hidden rounded-full bg-[var(--bar-track)]">
                     <div
                       className="bar-fill h-full rounded-full bg-[var(--accent)]"
                       style={{ width: `${(stats.paid / maxPaid) * 100}%` }}
@@ -95,7 +81,7 @@ export default function Stats() {
               summary={
                 <div className="flex min-w-0 flex-1 justify-between gap-3 text-sm">
                   <span className="truncate font-medium">{member.name}</span>
-                  <span className="shrink-0 tabular-nums">
+                  <span className="num shrink-0 text-sm">
                     {formatCents(stats.owedShare, base, intl)}
                   </span>
                 </div>
@@ -121,7 +107,7 @@ export default function Stats() {
                     </span>
                     <span className="truncate">{categoryLabel(t, category as CategoryKey)}</span>
                   </span>
-                  <span className="shrink-0 tabular-nums">
+                  <span className="num shrink-0 text-sm">
                     {formatCents(stats.total, base, intl)}
                   </span>
                 </div>
@@ -138,7 +124,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   return (
     <section className="mt-6">
       <h2 className="section-label">{title}</h2>
-      <div className="card row-divider mt-2.5 overflow-hidden">{children}</div>
+      <div className="glass glass-list mt-2.5">{children}</div>
     </section>
   );
 }
@@ -162,36 +148,38 @@ function Expandable({
 
   return (
     <details className="group/row">
-      <summary className="flex cursor-pointer list-none items-center gap-3 px-4 py-3 transition-colors marker:hidden hover:bg-[var(--surface-sunken)]">
+      <summary className="flex cursor-pointer list-none items-center gap-3 px-4 py-[0.8125rem] transition-colors marker:hidden hover:bg-[var(--glass-shine)]">
         {summary}
         <IconChevronDown
           aria-hidden
-          className="size-4 shrink-0 text-[var(--text-muted)] transition-transform duration-200 group-open/row:rotate-180"
+          className="size-4 shrink-0 text-[var(--text-2)] transition-transform duration-200 group-open/row:rotate-180"
         />
       </summary>
       {items.length === 0 ? (
-        <p className="bg-[var(--surface-sunken)] px-4 py-3 text-xs text-[var(--text-muted)]">
+        <p className="bg-black/[0.06] px-4 py-3 text-xs text-[var(--text-2)] dark:bg-black/20">
           {t.statsRowEmpty}
         </p>
       ) : (
-        <ul className="bg-[var(--surface-sunken)]">
+        <ul className="bg-black/[0.06] dark:bg-black/20">
           {items.map(({ entry, amountBase }) => (
-            <li key={entry.id} className="border-t border-[var(--line)]">
+            <li key={entry.id} className="border-t border-[var(--glass-border)]">
               <Link
                 to={`../entry/${entry.id}`}
                 relative="path"
-                className="flex items-center gap-2.5 px-4 py-2.5 transition-colors hover:bg-[var(--surface)]"
+                className="flex items-center gap-2.5 py-2.5 pl-[2.875rem] pr-4 transition-colors hover:bg-[var(--glass-shine)]"
               >
-                <span className="glyph size-7 shrink-0 rounded-lg">
+                <span className="glyph size-6 shrink-0 rounded-lg">
                   <EntryIcon kind={entry.kind} category={entry.category} className="size-3.5" />
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm">{entry.title || t.payment}</span>
-                  <span className="block text-xs text-[var(--text-muted)]">
+                  <span className="block truncate text-[0.84375rem]">
+                    {entry.title || t.payment}
+                  </span>
+                  <span className="block text-xs text-[var(--text-2)]">
                     {dateFormat.format(new Date(`${entry.expenseDate}T12:00:00`))}
                   </span>
                 </span>
-                <span className="shrink-0 text-sm tabular-nums">
+                <span className="num shrink-0 text-[0.84375rem]">
                   {formatCents(amountBase, base, intl)}
                 </span>
               </Link>

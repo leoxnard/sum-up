@@ -1,4 +1,4 @@
-import { Link, useNavigate } from "react-router";
+import { useNavigate } from "react-router";
 import { useState } from "react";
 
 import type { Route } from "./+types/new-group";
@@ -8,6 +8,7 @@ import { randomAccent } from "../lib/accent";
 import { submitOp } from "../lib/client/outbox";
 import { rememberDeviceGroup, saveSnapshot } from "../lib/client/idb";
 import { writeClaim } from "../lib/client/claim";
+import { Sheet, useDismiss } from "../components/overlays";
 import { IconPlus } from "../components/icons";
 import type { GroupSnapshot } from "../lib/types";
 
@@ -23,19 +24,43 @@ function randomSlug(): string {
 
 export default function NewGroup() {
   const { t } = useT();
+  return (
+    <Sheet backTo="/" label={t.createGroup}>
+      <NewGroupFields />
+    </Sheet>
+  );
+}
+
+function NewGroupFields() {
+  const { t } = useT();
   const navigate = useNavigate();
+  const dismiss = useDismiss();
   const [name, setName] = useState("");
   const [currency, setCurrency] = useState("EUR");
   const [memberNames, setMemberNames] = useState<string[]>(["", ""]);
-  const [error, setError] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
   async function create() {
     const trimmedName = name.trim();
     const members = memberNames.map((m) => m.trim()).filter(Boolean);
     if (!trimmedName || members.length === 0) {
-      setError(true);
+      setError(t.errNoTitle);
       return;
     }
+    setSaving(true);
+    setError(null);
+    try {
+      await createGroup(trimmedName, members);
+    } catch {
+      // Every step below writes to IndexedDB first. If that is unavailable the
+      // group would silently never appear — say so instead of doing nothing.
+      setError(t.storageUnavailable);
+      setSaving(false);
+    }
+  }
+
+  async function createGroup(trimmedName: string, members: string[]) {
     const now = Date.now();
     const groupId = crypto.randomUUID();
     const slug = randomSlug();
@@ -82,13 +107,28 @@ export default function NewGroup() {
   }
 
   return (
-    <main className="animate-rise mx-auto min-h-dvh max-w-lg px-4 pb-16 pt-8">
-      <header className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold tracking-tight">{t.createGroup}</h1>
-        <Link to="/" className="btn btn-ghost -mr-3">{t.cancel}</Link>
+    <>
+      <header className="sheet-head">
+        <button
+          type="button"
+          onClick={dismiss}
+          className="-ml-1 shrink-0 px-1 py-1 text-[0.9375rem] font-semibold text-[var(--text-2)]"
+        >
+          {t.cancel}
+        </button>
+        <h2 className="min-w-0 flex-1 truncate text-center text-base font-bold">
+          {t.createGroup}
+        </h2>
+        <button
+          onClick={() => void create()}
+          disabled={saving}
+          className="btn btn-primary h-9 shrink-0 rounded-2xl px-4 text-sm"
+        >
+          {saving ? t.loading : t.create}
+        </button>
       </header>
 
-      <div className="mt-6 flex flex-col gap-5">
+      <div className="sheet-body flex flex-col gap-5 pt-5">
         <div>
           <Label>{t.groupName}</Label>
           <input
@@ -107,7 +147,7 @@ export default function NewGroup() {
               <option key={c} value={c}>{c}</option>
             ))}
           </select>
-          <p className="mt-1.5 text-xs text-[var(--text-muted)]">{t.baseCurrencyHint}</p>
+          <p className="mt-1.5 text-xs text-[var(--text-2)]">{t.baseCurrencyHint}</p>
         </div>
 
         <div>
@@ -137,23 +177,25 @@ export default function NewGroup() {
         </div>
 
         {error && (
-          <p className="animate-pop rounded-xl bg-rose-500/10 px-3.5 py-2.5 text-sm font-medium text-rose-600 dark:text-rose-400">
-            {t.errNoTitle}
+          <p
+            className="animate-pop rounded-2xl px-3.5 py-2.5 text-sm font-semibold"
+            style={{
+              color: "var(--neg)",
+              background: "color-mix(in oklab, var(--neg) 12%, transparent)",
+            }}
+          >
+            {error}
           </p>
         )}
 
-        <button onClick={() => void create()} className="btn btn-primary btn-lg">
-          {t.create}
-        </button>
+        <p className="text-[0.71875rem] leading-relaxed text-[var(--text-3)]">
+          {t.credentialNote}
+        </p>
       </div>
-    </main>
+    </>
   );
 }
 
 function Label({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="mb-1.5 text-sm font-medium text-[var(--text-muted)]">
-      {children}
-    </div>
-  );
+  return <div className="section-label mb-2">{children}</div>;
 }

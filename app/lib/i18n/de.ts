@@ -6,12 +6,16 @@ export const de: Dictionary = {
   homeTagline: "Gruppenausgaben teilen. Ohne Konto, nur mit einem Link.",
   yourGroups: "Deine Gruppen",
   noGroupsYet: "Noch keine Gruppen auf diesem Gerät.",
+  storageUnavailable:
+    "Der lokale Speicher dieses Geräts lässt sich nicht lesen, deshalb fehlt die Gruppenliste. Schließe andere Sum-Up-Tabs und lade neu — deine Daten sind sicher, nur diese Liste fehlt.",
   createGroup: "Neue Gruppe",
   joinGroup: "Gruppe beitreten",
   joinByCode: "Einladungslink oder Code einfügen",
   join: "Beitreten",
   joinInvalid: "Das sieht nicht nach einem gültigen Einladungslink oder Code aus.",
   // Group creation / settings
+  credentialNote:
+    "Der Link einer Gruppe ist ihr einziger Schlüssel — kein Konto, kein Login. Wer ihn hat, kann die Gruppe sehen und bearbeiten.",
   groupName: "Gruppenname",
   groupNamePlaceholder: "z. B. Rom-Trip",
   baseCurrency: "Basiswährung",
@@ -41,6 +45,15 @@ export const de: Dictionary = {
   whoAreYou: "Wer bist du?",
   whoAreYouHint: "Wähle deinen Namen — dieses Gerät merkt ihn sich. Er zeigt deinen Saldo und füllt „Bezahlt von“ vor.",
   notInList: "Nur zuschauen",
+  // Group tabs
+  tabOverview: "Übersicht",
+  tabActivity: "Aktivität",
+  tabStats: "Statistik",
+  tabSettings: "Einstellungen",
+  // Add-expense mode switch
+  modeManual: "Eintippen",
+  modeAI: "Scannen oder sagen",
+  backspace: "Letzte Ziffer löschen",
   // Group overview
   yourBalance: "Dein Saldo",
   youAreOwed: "du bekommst",
@@ -209,4 +222,46 @@ export const de: Dictionary = {
   installHint: "Tipp: Füge Sum Up deinem Homescreen hinzu für das volle App-Gefühl.",
   errorTitle: "Etwas ist schiefgelaufen",
   offlineNoData: "Diese Gruppe ist offline noch nicht verfügbar. Öffne sie einmal mit Internet.",
+  // Impressum
+  legal: "Impressum",
+  legalAddressTitle: "Angaben gemäß § 5 DDG",
+  legalName: "Leonard Sima",
+  legalStreet: "Floriansmühlstrasse 1",
+  legalCity: "80939 München",
+  legalCountry: "Deutschland",
+  legalContactTitle: "Kontakt",
+  legalEmail: "sum-up@leonardsima.de",
+  legalHostingTitle: "Hosting",
+  legalHosting:
+    "Diese Website wird nicht bei einem externen Hoster betrieben, sondern auf eigener Hardware des Anbieters. Die Auslieferung erfolgt über das Content-Delivery-Netzwerk der Cloudflare, Inc., 101 Townsend St, San Francisco, CA 94107, USA; dabei werden Verbindungsdaten wie die IP-Adresse verarbeitet.",
+  // Datenschutz
+  legalPrivacy: "Datenschutz",
+  legalControllerTitle: "Verantwortlicher",
+  legalController:
+    "Verantwortlich für die hier beschriebene Verarbeitung ist die oben genannte Person. Für alles in diesem Abschnitt erreichst Du sie unter der genannten Kontaktadresse.",
+  legalDataTitle: "Was gespeichert wird",
+  legalData:
+    "Sum Up hat keine Konten und verlangt keine Registrierung. Der Link einer Gruppe ist ihr einziger Zugangsschutz — wer ihn hat, kann die Gruppe lesen und ändern. Behandle ihn wie ein Passwort. Gespeichert werden je Gruppe die Namen, die Du Mitgliedern gibst, die eingetragenen Ausgaben und Zahlungen mit Beträgen, Währungen, Daten, Kategorien und Notizen sowie angehängte Fotos. Das alles liegt in einer Postgres-Datenbank auf unserem eigenen Server und wird zusätzlich in Deinem Browser gespiegelt, damit die App offline funktioniert.",
+  legalPurposeTitle: "Zweck und Rechtsgrundlage",
+  legalPurpose:
+    "Die Daten werden ausschließlich verarbeitet, um die geteilte Abrechnung bereitzustellen, die Du angelegt hast — Art. 6 Abs. 1 lit. b DSGVO. Serverprotokolle und die unten beschriebene anonyme Nutzungsstatistik stützen sich auf unser berechtigtes Interesse an einem stabilen und nachvollziehbaren Dienst, Art. 6 Abs. 1 lit. f DSGVO. Nichts davon wird für Werbung oder Profilbildung genutzt, nichts wird verkauft.",
+  legalThirdPartiesTitle: "Wer sonst Daten sieht",
+  legalThirdParties:
+    "Cloudflare liefert die Seite aus und sieht dabei Verbindungsdaten. Wenn Du eine Ausgabe aus einem Foto oder einer Sprachaufnahme importierst, wird diese Datei zur automatischen Auswertung an Google Ireland Ltd. übertragen; dasselbe gilt für Titel und Notiz einer Ausgabe, die zur automatischen Kategorisierung übermittelt werden. Importiere daher keine Belege, deren Inhalt Dein Gerät nicht verlassen soll. Wechselkurse kommen von api.frankfurter.dev, das nur Währungskürzel und Daten erhält. Ein Realtime-Kanal von Supabase meldet, dass sich in einer Gruppe etwas geändert hat, ohne die Änderung selbst zu übertragen.",
+  legalRetentionTitle: "Wie lange",
+  legalRetention:
+    "Die Daten einer Gruppe bleiben, bis Du die Gruppe in ihren Einstellungen löschst; damit werden sie entfernt. Die Offline-Kopie in Deinem Browser verschwindet, sobald Du dort die Daten der Seite löschst. Die Einträge einer Gruppe kannst Du jederzeit in ihren Einstellungen als CSV-Datei exportieren.",
+  legalRightsTitle: "Deine Rechte",
+  legalRights:
+    "Nach der DSGVO kannst Du Auskunft über die zu Dir gespeicherten Daten verlangen, ihre Berichtigung oder Löschung, eine Einschränkung der Verarbeitung sowie ihre Herausgabe; einer Verarbeitung auf Grundlage berechtigten Interesses kannst Du widersprechen. Da es keine Konten gibt, können wir eine Anfrage nur einer Gruppe zuordnen, die Du über ihren Link benennen kannst. Außerdem steht Dir eine Beschwerde bei einer Aufsichtsbehörde zu, für Bayern das Bayerische Landesamt für Datenschutzaufsicht.",
+  legalAnalyticsTitle: "Analyse",
+  legalAnalytics:
+    "Diese Website nutzt Umami, eine selbst gehostete Analyse-Software auf demselben Server. Erfasst werden Seitenaufrufe, verweisende Seite, ungefähres Herkunftsland sowie grober Geräte- und Browsertyp. Umami setzt keine Cookies, speichert IP-Adressen nur als Hashwert und kann Dich nicht über andere Websites hinweg verfolgen. Der Gruppenlink wird vor dem Senden aus der Adresse entfernt. Es werden keine Daten an Dritte weitergegeben.",
+  legalCookiesTitle: "Cookies und lokale Speicherung",
+  legalCookies:
+    "Es werden keine Tracking- oder Werbe-Cookies gesetzt. Sum Up speichert Deine Sprachwahl und die Angabe, welches Mitglied Du in einer Gruppe bist, in kleinen Cookies und legt eine Kopie Deiner Gruppen im Speicher des Browsers ab, damit die App offline funktioniert. Löschst Du im Browser die Daten dieser Seite, verschwindet all das.",
+  legalLiabilityTitle: "Haftung für Inhalte und Links",
+  legalLiability:
+    "Die Inhalte dieser Seite wurden mit Sorgfalt erstellt. Für Richtigkeit, Vollständigkeit und Aktualität kann keine Gewähr übernommen werden. Diese Seite verweist auf externe Dienste, auf deren Inhalte kein Einfluss besteht; dafür ist der jeweilige Anbieter verantwortlich.",
+  legalUpdated: "Stand: 2. September 2026",
 };
