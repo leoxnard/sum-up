@@ -17,7 +17,14 @@ when a decision changes. `README.md` covers setup and deployment.
 
 React Router 8 (framework mode, SSR) · React 19 · Tailwind 4 · TypeScript
 (strict) · Vite 8 · Vitest 4 · Postgres via `postgres.js` · Supabase (Postgres +
-Realtime broadcast) · Gemini (optional) · deployed on Vercel (`fra1`).
+Realtime broadcast) · Gemini (optional) · self-hosted: a Docker container built
+from `Dockerfile`, served behind Cloudflare at `sum-up.leonardsima.de`.
+
+**There is no Vercel.** The app once ran there and the move left dead
+platform-specific config behind — `vercel.json` silently stopped sending any of
+its headers, and `@vercel/functions` was a dependency nothing could use. Both
+are gone. Anything that has to hold in production belongs in the app, not in a
+host's config file.
 
 ## Commands
 
@@ -52,13 +59,16 @@ optional ones** — that is a hard product rule, not a nicety.
 
 ```
 app/
-  root.tsx              root loader (locale + supabase config), Layout, useT()
+  root.tsx              root loader (locale + supabase config), security-header
+                        middleware, Layout, useT()
   routes.ts             the route manifest — routes are declared here, not by file name
   routes/               route modules (loader / clientLoader / action / default export)
-  components/           EntryForm (shared by new-expense/new-payment/edit), DuplicateWarning, icons
+  components/           EntryForm (shared by new-expense/new-payment/edit), overlays
+                        (Sheet / PushPanel / useDismiss), DuplicateWarning, Analytics,
+                        icons
   lib/
     *.ts                pure domain logic — money, split, balances, categories,
-                        duplicates, extract, parse-ops, accent, currencies
+                        duplicates, extract, parse-ops, accent, currencies, analytics
     *.test.ts           vitest tests, colocated
     types.ts            shared domain types + the SyncOp union
     i18n/               en.ts (source of truth), de.ts, index.ts
@@ -67,7 +77,7 @@ app/
     client/*.ts         browser-only: idb, outbox, overlay, claim, image, audio,
                         clipboard, warm
 supabase/
-  migration/0001_init.sql   the migration to apply (README calls it db/0001_init.sql)
+  migration/0001_init.sql   the migration to apply (README now points here too)
   schema.sql                dumped schema
 public/sw.js            service worker (app shell, page + photo caches)
 .agents/skills/react-router/   vendored React Router docs — consult before route work
@@ -111,6 +121,46 @@ Rules baked into this design — preserve them:
 If you add an op, touch all four: `types.ts`, `parse-ops.ts`,
 `sync.server.ts`, `overlay.ts`.
 
+### The group shell
+
+`routes/group.tsx` is one screen with three ways of presenting a child route, chosen
+by path in `overlayKind()`:
+
+- **tabs** (`""`, `activity`, `stats`, `settings`) render inside the page, under the
+  floating capsule bar. The bar's thumb is pure CSS (`--tab-index` / `--tab-count`);
+  panels fly in from the side you came from.
+- **sheets** (`new-expense`, `new-payment`, `import`) rise from the bottom and recess
+  the whole stack behind them.
+- **push panels** (`entry/:id`, `settle`) slide in from the right.
+
+All of them stay **real routes**. That is deliberate: a client-state overlay would
+break the back button, deep links and the service worker's per-URL page cache — the
+three things offline navigation is built on. `components/overlays.tsx` owns the
+presentation, including an exit animation that has to complete *before* the
+navigation, because a route unmounts the instant you navigate. Anything that closes
+an overlay should call `useDismiss()` rather than navigating itself.
+
+Two consequences worth knowing before you change this:
+
+- While an overlay is open the tab content is not rendered — one `<Outlet>` can only
+  be in one place. The push panel is opaque and the sheet covers all but a dimmed
+  sliver, so what you would see behind is background either way.
+- Links inside a tab are relative to *that tab's* path. `entry/:id` lives under the
+  group, not under `/activity`, so link to it absolutely.
+
+### Glass
+
+Two grounds, one set of tokens (`app.css`): dark is the drawn direction, light is the
+same material inverted. Components read `--glass`, `--text-2`, `--field`, `--accent`
+and never branch on theme themselves. A group's accent is handed to the tree as a
+*pair* of values by `accentVars()` — a media query cannot reach into an inline style,
+so both tones ship and CSS picks one.
+
+**Never nest `backdrop-filter` inside a sheet or push panel.** A blur inside a fixed,
+scrolling ancestor that also composites leaves blank tiles in Chrome — the split list
+and the date field simply stopped painting. The rule that switches it off is in
+app.css; those panels are near-opaque anyway, so there is no page behind them to blur.
+
 ### Offline-first is priority #1
 
 - `loader` hits Postgres; `clientLoader` tries `serverLoader()` first, saves the
@@ -135,10 +185,11 @@ a broadcast.
 
 ### Background work
 
-`runInBackground()` (`lib/server/background.server.ts`) uses Vercel's
-`waitUntil` when available and swallows all errors. Categorization, doorbell
-pings, and anything else non-essential run there. **Background work must never
-fail a request.**
+`runInBackground()` (`lib/server/background.server.ts`) detaches the promise and
+swallows all errors. The app is a long-lived Node process in a container, so
+nothing freezes mid-task — the helper used to register with Vercel's `waitUntil`
+and no longer needs to. Categorization, doorbell pings, and anything else
+non-essential run there. **Background work must never fail a request.**
 
 ### Money
 
@@ -149,6 +200,12 @@ to the amount in all four modes (equal / exact / percent / shares). Exchange
 rates are prefilled from `/api/rates` (frankfurter.dev proxy) and **frozen onto
 the entry at save time**. Never introduce floating-point arithmetic into the
 money path.
+
+Amounts are typed on an on-screen pad, but the display stays a real `<input>` at
+`inputMode="none"`: that hides the system keyboard while keeping the caret, physical
+keyboards, screen readers and iOS's long-press Paste callout alive. Don't turn it into
+a `<div>` — pasting "12,50 €" out of a banking app is a supported path (see the
+`onPaste` handler and `cleanAmountInput`).
 
 ### Categorization
 
@@ -180,12 +237,30 @@ review list. All of them funnel through `runExtraction()`
 
 ### Security posture
 
-- A group link is a bearer credential: `meta` sets `noindex, nofollow`,
-  `vercel.json` sends `X-Robots-Tag` for `/g/*`, and `scrubSlug()` in
-  `root.tsx` strips slugs from analytics URLs. Never let a slug reach a third
-  party or a log.
+- **Security headers are set by the app, never by the host.** A root
+  `middleware` in `root.tsx` sends `Referrer-Policy: no-referrer`,
+  `X-Content-Type-Options: nosniff` and `X-Frame-Options: DENY` on every
+  response, plus `X-Robots-Tag: noindex, nofollow` on `/g/*`. They used to live
+  in `vercel.json` and vanished without a sound when the host changed — nothing
+  failed, the headers simply stopped arriving. Don't move them back out.
+- A group link is a bearer credential: `group.tsx` sets the `robots` meta tag,
+  the middleware sends the matching header, and `scrubUrl()` (`lib/analytics.ts`)
+  replaces the slug with `[slug]` before any URL reaches analytics. Never let a
+  slug reach a third party or a log.
 - Photos are stored as `bytea` and served through a slug-gated route; only
   jpeg/png/webp are accepted (`PHOTO_TYPES`).
+
+### Analytics
+
+Umami, self-hosted on `analytics.leonardsima.de` — same machine as the app, so
+no data leaves our infrastructure. The website id and host are constants in
+`lib/analytics.ts`, not env vars: the id is in the served HTML anyway, and a
+deploy needs no configuration. `UMAMI_DOMAINS` keeps dev and previews out of the
+stats.
+
+**Never put personal data in an event** — no member names, no group slugs, no
+amounts. Counters and coarse categories only. Every reported URL goes through
+`scrubUrl()`.
 
 ### i18n
 

@@ -18,7 +18,7 @@ export function modelChain(): string[] {
 
 /**
  * Async categorization pass. Never throws; never blocks a save — callers
- * fire-and-forget (or waitUntil on Vercel). On success updates the row and
+ * fire-and-forget in the background. On success updates the row and
  * rings the doorbell so open clients see the refined category.
  */
 export async function categorizeWithGemini(candidates: LlmCandidate[]): Promise<void> {

@@ -93,10 +93,32 @@ Agreed in a grilling session on 2026-07-18; this file is the spec of record.
 - **i18n**: DE + EN as typed TypeScript dictionaries (missing key = type error), no i18n framework,
   designed so adding locale #3 = one file + one union member. Detection: `Accept-Language`
   server-side, cookie switcher wins. Formatting via `Intl` only. DB stores locale-free keys.
-- **Design**: clean-minimal, mobile-first, system dark mode, big touch targets, group screen leads
-  with "your balance", thumb-reachable "+". **Per-group accent color** from ~10 curated swatches
-  (contrast-safe in both modes), random on creation, editable in group settings, applied via CSS
-  variable. Display name "Sum Up" (no relation to the fintech).
+- **Design**: iOS-26 "liquid glass", mobile-first — translucent blurred panels over a fixed page
+  gradient, Plus Jakarta Sans for the interface and Space Grotesk for every figure. One design in
+  two grounds: dark is the drawn direction, light is the same material inverted, and every
+  component reads from the same tokens rather than branching on theme. Big touch targets; the
+  group screen leads with "your balance". **Per-group accent color** from ~10 curated swatches,
+  each carrying two tones — a deep one for the pale ground, the iOS system tone for the dark one —
+  random on creation, editable in group settings, applied via CSS variables. Label colour on a
+  filled accent is computed per swatch, so a lime button isn't white-on-white.
+  Display name "Sum Up" (no relation to the fintech).
+- **Group navigation**: a floating glass capsule with four tabs — Overview, Activity, Stats,
+  Settings — and a thumb that slides between them. Overview answers "where do I stand"; the entry
+  history lives in Activity, so neither screen scrolls past its own answer.
+- **Overlays are route-backed**. Adding an expense or a payment, capturing with AI, creating a
+  group and editing an entry are drawn as bottom sheets and pushed-in detail panels, but each is
+  still a real route with a real URL — that is what keeps the back button, deep links and the
+  service worker's per-URL page cache working. `components/overlays.tsx` supplies the enter
+  animation and, because a route unmounts the instant you navigate, an explicit exit animation
+  that finishes *before* the navigation is issued. Picking who you are is the one exception: it is
+  device-local, has no meaningful URL, and so is a state-driven sheet.
+- **The amount is entered on an on-screen pad**, with the display kept as a real input at
+  `inputMode="none"` — that suppresses the system keyboard while keeping the caret, physical
+  keyboards, screen readers and iOS's long-press Paste callout. An explicit Paste button covers
+  the browsers that hide the callout.
+- **No nested `backdrop-filter`**: a blur inside a fixed, scrolling ancestor that also composites
+  leaves blank tiles in Chrome. Glass inside a sheet or push panel is a flat translucent fill;
+  nothing is lost, because those panels are near-opaque and have no page behind them to blur.
 
 ## Technical design
 
@@ -115,24 +137,36 @@ Agreed in a grilling session on 2026-07-18; this file is the spec of record.
 - **Doorbell**: server POSTs to Realtime's REST broadcast endpoint after successful writes
   (serverless-friendly, no WebSocket from the server); clients subscribe with the publishable key.
 - **Rates**: `/api/rates` proxy to `api.frankfurter.dev` (≈30 ECB currencies).
-- **Categorization**: fire-and-forget after response (`waitUntil` on Vercel), row update + doorbell.
+- **Categorization**: fire-and-forget after the response (detached promise on the long-lived
+  Node process), row update + doorbell.
+- **Security headers**: set by a root `middleware` in `root.tsx`, not by host config —
+  `Referrer-Policy: no-referrer`, `nosniff`, `X-Frame-Options: DENY` everywhere, plus
+  `X-Robots-Tag: noindex, nofollow` on `/g/*`.
+- **Analytics**: self-hosted Umami on `analytics.leonardsima.de`; every URL passes through
+  `scrubUrl()` so the group slug never leaves the device. No personal data in events.
 - **Env**: `DATABASE_URL`, `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `GEMINI_API_KEY` (user-supplied).
-- **Infra**: Supabase project `sum-up`, `eu-central-1` (Frankfurt), $0/month confirmed
-  (created under a second Supabase account, since the original account's free-tier 2-project
-  cap was already used by GeoBingoDB + spielzettel). **Use the Supavisor transaction pooler**
-  connection string (`postgres.<ref>@aws-0-eu-central-1.pooler.supabase.com:6543`) for
-  `DATABASE_URL`, not the direct `db.<ref>.supabase.co:5432` host — Vercel's serverless network
-  cannot resolve the direct hostname (`ENOTFOUND`), pooler works. Deployed to Vercel at
-  https://sum-up-delta.vercel.app, functions pinned to `fra1` via `vercel.json`.
+- **Hosting**: self-hosted. The container is built from `Dockerfile` (`npm run start` →
+  `react-router-serve`) and served behind Cloudflare at https://sum-up.leonardsima.de.
+  **No Vercel** — see the note in `CLAUDE.md` about the dead config that migration left
+  behind. Nothing platform-specific belongs in this repo.
+- **Database**: Postgres. When the connection string points at Supabase's Supavisor
+  transaction pooler (`postgres.<ref>@aws-0-eu-central-1.pooler.supabase.com:6543`),
+  `prepare: false` in `db.server.ts` is mandatory — the pooler does not support prepared
+  statements. That flag is harmless against a plain Postgres, so it stays either way.
+  The Supabase project (`sum-up`, `eu-central-1`, free tier) also provides the Realtime
+  broadcast used by the doorbell; both are optional and the app degrades without them.
 
 ## Route map
 
-- `/` — device-known groups (works offline), create group, join by code/link
-- `/new` — create group (name, base currency, members)
-- `/g/:slug` — group overview: your balance, all balances, entry list, "+"
-- `/g/:slug/new-expense`, `/g/:slug/new-payment`, `/g/:slug/entry/:id` (edit)
-- `/g/:slug/settle` — settlement suggestions, one-tap record
-- `/g/:slug/stats` — per-member and per-category totals; every row unfolds into
-  the expenses behind it
-- `/g/:slug/settings` — rename, accent color, members, language, CSV export, delete
+- `/` — device-known groups with your balance in each (works offline), join by code/link.
+  A layout route, not an index: `/new` is a sheet over it and needs its host mounted.
+- `/new` — create group (name, base currency, members) — sheet
+- `/g/:slug` — Overview tab: your balance, all balances, settle/payment
+- `/g/:slug/activity` — Activity tab: entries by day with daily totals
+- `/g/:slug/stats` — Stats tab: per-member and per-category totals; every row unfolds
+  into the expenses behind it
+- `/g/:slug/settings` — Settings tab: rename, accent color, members, language, CSV export, delete
+- `/g/:slug/new-expense`, `/g/:slug/new-payment`, `/g/:slug/import` — sheets
+- `/g/:slug/entry/:id` (edit), `/g/:slug/settle` — push panels
+- `/legal` — imprint and privacy notice, linked from the start screen footer
 - `/g/:slug/export.csv`, `/g/:slug/photo/:photoId`, `/api/rates`

@@ -15,6 +15,32 @@ import { getLocale } from "./lib/server/cookies.server";
 import { dict, INTL_LOCALE, type Locale } from "./lib/i18n";
 import { Analytics } from "./components/Analytics";
 
+/**
+ * Security headers, set by the app rather than by the host.
+ *
+ * These used to live in `vercel.json`. That file is Vercel-only configuration,
+ * so the move to a self-hosted container silently dropped every one of them —
+ * the app served no `Referrer-Policy`, no `X-Frame-Options`, no `nosniff` and
+ * no `X-Robots-Tag` for months without anything failing. Owning them here means
+ * they survive the next move too.
+ *
+ * `X-Robots-Tag` on `/g/*` is the HTTP half of the rule that a group link is a
+ * bearer credential; `group.tsx` sets the matching `robots` meta tag, and a
+ * crawler that reads only headers must reach the same conclusion.
+ */
+const securityHeaders: Route.MiddlewareFunction = async ({ request }, next) => {
+  const response = await next();
+  response.headers.set("Referrer-Policy", "no-referrer");
+  response.headers.set("X-Content-Type-Options", "nosniff");
+  response.headers.set("X-Frame-Options", "DENY");
+  if (new URL(request.url).pathname.startsWith("/g/")) {
+    response.headers.set("X-Robots-Tag", "noindex, nofollow");
+  }
+  return response;
+};
+
+export const middleware: Route.MiddlewareFunction[] = [securityHeaders];
+
 export function loader({ request }: Route.LoaderArgs) {
   return {
     locale: getLocale(request),
